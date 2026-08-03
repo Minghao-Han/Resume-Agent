@@ -136,7 +136,7 @@ export function AssistantDrawer() {
         }`}
         aria-label="打开助手（沿右边缘可拖动）"
       >
-        {open ? "×" : "AI"}
+        {open ? "Close" : "AI"}
       </button>
       {open && (
         <div
