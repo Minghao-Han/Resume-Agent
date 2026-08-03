@@ -8,6 +8,7 @@ import { useIsDarkMode } from "@/lib/useIsDarkMode";
 import { toast } from "@/lib/toast";
 import { typstLanguage } from "@/lib/typstLanguage";
 import { ApiError, apiGet, apiPost, apiPut, apiDelete } from "@/lib/apiClient";
+import { useReportDirty, UNSAVED_CHANGES_MESSAGE } from "@/lib/unsavedChanges";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean; updatedAt: string };
 type Template = TemplateSummary & { typstSource: string };
@@ -19,7 +20,11 @@ export default function TemplatesPage() {
   const [source, setSource] = useState(DEFAULT_TYPST_TEMPLATE);
   const [saving, setSaving] = useState(false);
   const [compileInfo, setCompileInfo] = useState<TypstCompileInfo>({ pageCount: 0, error: null });
+  const [savedSnapshot, setSavedSnapshot] = useState({ name: "新模板", source: DEFAULT_TYPST_TEMPLATE });
   const isDark = useIsDarkMode();
+
+  const isDirty = name !== savedSnapshot.name || source !== savedSnapshot.source;
+  useReportDirty(isDirty);
 
   async function refreshList() {
     const data = await apiGet<TemplateSummary[]>("/api/templates");
@@ -34,17 +39,23 @@ export default function TemplatesPage() {
     });
   }, []);
 
+  function confirmDiscardIfDirty() {
+    return !isDirty || confirm(UNSAVED_CHANGES_MESSAGE);
+  }
+
   async function loadTemplate(id: string) {
     const data = await apiGet<Template>(`/api/templates/${id}`);
     setSelectedId(data.id);
     setName(data.name);
     setSource(data.typstSource);
+    setSavedSnapshot({ name: data.name, source: data.typstSource });
   }
 
   function startNew() {
     setSelectedId(null);
     setName("新模板");
     setSource(DEFAULT_TYPST_TEMPLATE);
+    setSavedSnapshot({ name: "新模板", source: DEFAULT_TYPST_TEMPLATE });
   }
 
   async function save() {
@@ -56,6 +67,7 @@ export default function TemplatesPage() {
         const created = await apiPost<Template>("/api/templates", { name, typstSource: source });
         setSelectedId(created.id);
       }
+      setSavedSnapshot({ name, source });
       await refreshList();
       toast("已保存");
     } catch (err) {
@@ -69,6 +81,7 @@ export default function TemplatesPage() {
     if (!selectedId) return;
     if (!confirm(`删除模板「${name}」？`)) return;
     await apiDelete(`/api/templates/${selectedId}`);
+    setSavedSnapshot({ name: "新模板", source: DEFAULT_TYPST_TEMPLATE });
     startNew();
     await refreshList();
     toast("已删除");
@@ -80,7 +93,11 @@ export default function TemplatesPage() {
         <select
           className="input"
           value={selectedId ?? ""}
-          onChange={(e) => (e.target.value ? loadTemplate(e.target.value) : startNew())}
+          onChange={(e) => {
+            if (!confirmDiscardIfDirty()) return;
+            if (e.target.value) loadTemplate(e.target.value);
+            else startNew();
+          }}
         >
           <option value="">(新建模板)</option>
           {templates.map((t) => (
@@ -91,7 +108,11 @@ export default function TemplatesPage() {
           ))}
         </select>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
-        <button type="button" className="btn-secondary" onClick={startNew}>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => confirmDiscardIfDirty() && startNew()}
+        >
           新建
         </button>
         <button type="button" className="btn-primary" onClick={save} disabled={saving}>

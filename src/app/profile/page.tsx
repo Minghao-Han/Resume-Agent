@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "@/lib/toast";
 import { ApiError, apiGet, apiPut } from "@/lib/apiClient";
+import { useReportDirty } from "@/lib/unsavedChanges";
 
 type Education = {
   id?: string;
@@ -49,12 +50,19 @@ const EMPTY_PROFILE: Profile = {
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
+  const [savedSnapshot, setSavedSnapshot] = useState<Profile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const isDirty = !loading && JSON.stringify(profile) !== JSON.stringify(savedSnapshot);
+  useReportDirty(isDirty);
+
   useEffect(() => {
     apiGet<Profile>("/api/profile")
-      .then((data) => setProfile(data))
+      .then((data) => {
+        setProfile(data);
+        setSavedSnapshot(data);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -82,6 +90,7 @@ export default function ProfilePage() {
     try {
       const data = await apiPut<Profile>("/api/profile", profile);
       setProfile(data);
+      setSavedSnapshot(data);
       toast("已保存");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "保存失败，请重试");

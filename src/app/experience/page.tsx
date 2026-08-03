@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChatPanel, type ChatMessage, type MentionItem } from "@/components/ChatPanel";
 import { toast } from "@/lib/toast";
 import { ApiError, apiGet, apiPost, apiPut, apiDelete } from "@/lib/apiClient";
+import { useReportDirty, UNSAVED_CHANGES_MESSAGE } from "@/lib/unsavedChanges";
 
 type ExperienceType = "intern" | "project";
 
@@ -64,8 +65,16 @@ const EMPTY: Experience = {
 export default function ExperiencePage() {
   const [list, setList] = useState<ExperienceSummary[]>([]);
   const [current, setCurrent] = useState<Experience>(EMPTY);
+  const [savedSnapshot, setSavedSnapshot] = useState<Experience>(EMPTY);
   const [sending, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const isDirty = JSON.stringify(current) !== JSON.stringify(savedSnapshot);
+  useReportDirty(isDirty);
+
+  function confirmDiscardIfDirty() {
+    return !isDirty || confirm(UNSAVED_CHANGES_MESSAGE);
+  }
 
   async function refreshList() {
     setList(await apiGet<ExperienceSummary[]>("/api/experiences"));
@@ -76,11 +85,16 @@ export default function ExperiencePage() {
   }, []);
 
   function startNew() {
+    if (!confirmDiscardIfDirty()) return;
     setCurrent(EMPTY);
+    setSavedSnapshot(EMPTY);
   }
 
   async function loadExperience(id: string) {
-    setCurrent(await apiGet<Experience>(`/api/experiences/${id}`));
+    if (!confirmDiscardIfDirty()) return;
+    const data = await apiGet<Experience>(`/api/experiences/${id}`);
+    setCurrent(data);
+    setSavedSnapshot(data);
   }
 
   async function extract() {
@@ -189,6 +203,7 @@ export default function ExperiencePage() {
         ? await apiPut<Experience>(`/api/experiences/${current.id}`, payload)
         : await apiPost<Experience>("/api/experiences", payload);
       setCurrent(saved);
+      setSavedSnapshot(saved);
       await refreshList();
       toast("已保存");
     } catch (err) {
@@ -202,7 +217,10 @@ export default function ExperiencePage() {
     const target = list.find((e) => e.id === id);
     if (!confirm(`删除经历「${target?.title || "未命名"}」？其下所有 highlight 也会被删除。`)) return;
     await apiDelete(`/api/experiences/${id}`);
-    if (current.id === id) setCurrent(EMPTY);
+    if (current.id === id) {
+      setCurrent(EMPTY);
+      setSavedSnapshot(EMPTY);
+    }
     await refreshList();
     toast("已删除");
   }

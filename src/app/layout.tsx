@@ -4,6 +4,7 @@ import "./globals.css";
 import { NavBar } from "@/components/NavBar";
 import { AssistantDrawer } from "@/components/AssistantDrawer";
 import { ToastHost } from "@/components/ToastHost";
+import { UnsavedChangesProvider } from "@/lib/unsavedChanges";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,9 +32,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-dvh overflow-hidden antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden">
-        <NavBar />
-        <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
-        <AssistantDrawer />
+        <UnsavedChangesProvider>
+          <NavBar />
+          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+          <AssistantDrawer />
+        </UnsavedChangesProvider>
         <ToastHost />
       </body>
     </html>

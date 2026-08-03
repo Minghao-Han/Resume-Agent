@@ -6,6 +6,7 @@ import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { compileTypstPdf, downloadPdfBytes } from "@/lib/typstClient";
 import { toast } from "@/lib/toast";
 import { ApiError, apiGet, apiPost, apiPutBinary } from "@/lib/apiClient";
+import { useReportDirty, UNSAVED_CHANGES_MESSAGE } from "@/lib/unsavedChanges";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean };
 
@@ -24,6 +25,10 @@ export default function GeneratePage() {
   const [compileInfo, setCompileInfo] = useState<TypstCompileInfo>({ pageCount: 0, error: null });
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedTypstSnapshot, setSavedTypstSnapshot] = useState("");
+
+  const isDirty = typstSource !== "" && typstSource !== savedTypstSnapshot;
+  useReportDirty(isDirty);
 
   useEffect(() => {
     apiGet<TemplateSummary[]>("/api/templates").then((list) => {
@@ -35,6 +40,7 @@ export default function GeneratePage() {
 
   async function generate() {
     if (!jdText.trim() || !templateId) return;
+    if (isDirty && !confirm(UNSAVED_CHANGES_MESSAGE)) return;
     setGenerating(true);
     try {
       const data = await apiPost<{
@@ -100,6 +106,7 @@ export default function GeneratePage() {
       });
       const pdfBytes = await compileTypstPdf(typstSource);
       await apiPutBinary(`/api/resumes/${created.id}/pdf`, pdfBytes as BodyInit, "application/pdf");
+      setSavedTypstSnapshot(typstSource);
       toast("已保存");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "保存失败，请重试");

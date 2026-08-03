@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { useUnsavedChanges, UNSAVED_CHANGES_MESSAGE } from "@/lib/unsavedChanges";
 
 const LINKS = [
   { href: "/experience", label: "经历蒸馏" },
@@ -13,15 +13,31 @@ const LINKS = [
 
 export function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { isDirty } = useUnsavedChanges();
+
+  function go(href: string) {
+    if (href === pathname) return;
+    if (isDirty && !confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    router.push(href);
+  }
+
   return (
     <nav className="flex items-center gap-1 border-b border-neutral-200 px-4 py-2 dark:border-neutral-800">
-      <span className="mr-4 text-sm font-semibold">Resume Tailor</span>
+      <button
+        type="button"
+        onClick={() => go("/")}
+        className="mr-4 text-sm font-semibold hover:opacity-70"
+      >
+        Resume Tailor
+      </button>
       {LINKS.map((link) => {
         const active = pathname?.startsWith(link.href);
         return (
-          <Link
+          <button
             key={link.href}
-            href={link.href}
+            type="button"
+            onClick={() => go(link.href)}
             className={`rounded px-3 py-1.5 text-sm ${
               active
                 ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
@@ -29,7 +45,7 @@ export function NavBar() {
             }`}
           >
             {link.label}
-          </Link>
+          </button>
         );
       })}
     </nav>
