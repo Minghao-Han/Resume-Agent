@@ -9,9 +9,17 @@ let readyPromise: Promise<TypstModule> | null = null;
 
 function getTypst() {
   if (!readyPromise) {
-    readyPromise = import("@myriaddreamin/typst.ts").then((mod) => {
+    readyPromise = Promise.all([
+      import("@myriaddreamin/typst.ts"),
+      import("@myriaddreamin/typst.ts/contrib/snippet"),
+    ]).then(([mod, { TypstSnippet }]) => {
       mod.$typst.setCompilerInitOptions({ getModule: () => "/typst/typst_ts_web_compiler_bg.wasm" });
       mod.$typst.setRendererInitOptions({ getModule: () => "/typst/typst_ts_renderer_bg.wasm" });
+      // Resolves `#import "@preview/..."` packages by fetching them from the
+      // official Typst package registry (packages.typst.org) on demand, so
+      // templates can depend on real Typst Universe packages instead of the
+      // model having to reinvent their layout functions from scratch.
+      mod.$typst.use(TypstSnippet.fetchPackageRegistry());
       return mod;
     });
   }

@@ -35,14 +35,14 @@ const PERSONAL_INFO_VAR_MAP: Record<
  * variable patterns before the template ever reaches the agent — a
  * deterministic safety net, not a substitute for the prompt instructions.
  *
- * Also strips `#import "@preview/...":` lines: this app's Typst compiler has
- * no package registry configured, so any template referencing a Typst
- * Universe package cannot compile here regardless of what the model does.
+ * `#import "@preview/...":` lines are left untouched — the browser Typst
+ * compiler (typst.ts) fetches Typst Universe packages over the network on
+ * demand, so templates that depend on one (e.g. `@preview/basic-resume`)
+ * compile here exactly as they would with the real `typst` CLI. See
+ * `typstClient.ts` for where the package registry is wired up.
  */
 export function sanitizeTemplateSource(templateSource: string, personalInfo: PersonalInfoForPrompt): string {
-  let result = templateSource.replace(/^#import\s+"@preview\/[^"]*"[^\n]*\n?/gm, "");
-
-  result = result.replace(
+  const result = templateSource.replace(
     /#let\s+([A-Za-z_][\w-]*)\s*=\s*"((?:[^"\\]|\\.)*)"/g,
     (full: string, varName: string) => {
       const key = varName.toLowerCase();
