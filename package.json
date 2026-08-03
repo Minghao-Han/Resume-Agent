@@ -6,15 +6,28 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node scripts/copy-typst-wasm.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
+    "@myriaddreamin/typst-ts-renderer": "^0.7.0",
+    "@myriaddreamin/typst-ts-web-compiler": "^0.7.0",
+    "@myriaddreamin/typst.ts": "^0.7.0",
+    "@prisma/adapter-better-sqlite3": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "@uiw/react-codemirror": "^4.25.11",
+    "dotenv": "^17.4.2",
     "next": "16.2.12",
+    "prisma": "^7.9.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "uuid": "^14.0.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

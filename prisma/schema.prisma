@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model PersonalInfo {
+  id         Int         @id @default(autoincrement())
+  name       String      @default("")
+  phone      String      @default("")
+  email      String      @default("")
+  location   String      @default("")
+  educations Education[]
+  updatedAt  DateTime    @updatedAt
+}
+
+model Education {
+  id             String       @id @default(uuid())
+  school         String
+  degree         String
+  major          String
+  startDate      String
+  endDate        String
+  sortOrder      Int          @default(0)
+  personalInfo   PersonalInfo @relation(fields: [personalInfoId], references: [id], onDelete: Cascade)
+  personalInfoId Int
+}
+
+// type: "intern" | "project"
+model Experience {
+  id          String   @id @default(uuid())
+  title       String
+  org         String
+  type        String
+  rawInput    String
+  situation   String   @default("")
+  task        String   @default("")
+  action      String   @default("")
+  result      String   @default("")
+  quantify    String   @default("")
+  tags        String   @default("[]") // JSON string[]
+  chatHistory String   @default("[]") // JSON {role, content}[]
+  sessionId   String? // Claude Agent SDK session id, so chat can resume() after reload
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ResumeTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  typstSource String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GeneratedResume {
+  id                    String   @id @default(uuid())
+  label                 String
+  jdSource              String // the raw URL or JD text the user supplied
+  jdIsUrl               Boolean  @default(false)
+  targetRoleTag         String   @default("")
+  typstSource           String
+  selectedExperienceIds String   @default("[]") // JSON string[]
+  chatHistory           String   @default("[]") // JSON {role, content}[]
+  sessionId             String? // Claude Agent SDK session id, so chat can resume() after reload
+  pdfPath               String?
+  createdAt             DateTime @default(now())
+}

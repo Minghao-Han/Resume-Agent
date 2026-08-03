@@ -1,0 +1,177 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
+import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
+import { compileTypstPdf, downloadPdfBytes } from "@/lib/typstClient";
+
+type TemplateSummary = { id: string; name: string; isDefault: boolean };
+
+function looksLikeUrl(text: string) {
+  return /^https?:\/\//i.test(text.trim());
+}
+
+export default function GeneratePage() {
+  const [jdText, setJdText] = useState("");
+  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [templateId, setTemplateId] = useState("");
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const [typstSource, setTypstSource] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [compileInfo, setCompileInfo] = useState<TypstCompileInfo>({ pageCount: 0, error: null });
+  const [label, setLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((res) => res.json())
+      .then((list: TemplateSummary[]) => {
+        setTemplates(list);
+        const def = list.find((t) => t.isDefault) ?? list[0];
+        if (def) setTemplateId(def.id);
+      });
+  }, []);
+
+  async function generate() {
+    if (!jdText.trim() || !templateId) return;
+    setGenerating(true);
+    setSavedId(null);
+    try {
+      const res = await fetch("/api/resume/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jdText, jdIsUrl: looksLikeUrl(jdText), templateId }),
+      });
+      const data: { sessionId?: string; reply: string; typstSource: string | null } = await res.json();
+      setSessionId(data.sessionId);
+      setMessages([
+        { role: "user", content: looksLikeUrl(jdText) ? `JD URL: ${jdText}` : `JD:\n${jdText}` },
+        { role: "assistant", content: data.reply },
+      ]);
+      if (data.typstSource) setTypstSource(data.typstSource);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function sendChat(text: string) {
+    if (!sessionId) return;
+    setMessages((m) => [...m, { role: "user", content: text }]);
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/resume/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, message: text }),
+      });
+      const data: { sessionId?: string; reply: string; typstSource: string | null } = await res.json();
+      setSessionId(data.sessionId ?? sessionId);
+      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+      if (data.typstSource) setTypstSource(data.typstSource);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function shortenToOnePage() {
+    sendChat(
+      `The compiled resume is currently ${compileInfo.pageCount} pages. Please shorten it to fit exactly one page.`
+    );
+  }
+
+  async function save() {
+    if (!typstSource) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/resumes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: label || `简历 ${new Date().toLocaleString()}`,
+          jdSource: jdText,
+          jdIsUrl: looksLikeUrl(jdText),
+          typstSource,
+          chatHistory: messages,
+        }),
+      });
+      const created: { id: string } = await res.json();
+      const pdfBytes = await compileTypstPdf(typstSource);
+      await fetch(`/api/resumes/${created.id}/pdf`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/pdf" },
+        body: pdfBytes as BodyInit,
+      });
+      setSavedId(created.id);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function download() {
+    const pdfBytes = await compileTypstPdf(typstSource);
+    downloadPdfBytes(pdfBytes, `${label || "resume"}.pdf`);
+  }
+
+  return (
+    <div className="grid h-full min-h-0 grid-cols-2">
+      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="flex gap-2">
+          <select className="input" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <textarea
+          className="textarea w-full"
+          rows={6}
+          placeholder="粘贴 JD 文本，或直接粘贴 JD 链接（以 http(s):// 开头会自动识别为 URL）…"
+          value={jdText}
+          onChange={(e) => setJdText(e.target.value)}
+        />
+        <button type="button" className="btn-primary" onClick={generate} disabled={generating || !jdText.trim()}>
+          {generating ? "生成中…" : sessionId ? "重新生成" : "生成简历"}
+        </button>
+
+        <ChatPanel
+          className="min-h-0 flex-1 rounded border border-neutral-200 dark:border-neutral-800"
+          messages={messages}
+          onSend={sendChat}
+          sending={generating}
+          placeholder={sessionId ? "继续对话调整简历…" : "先生成一次简历，之后可以继续对话调整"}
+        />
+      </div>
+
+      <div className="flex min-h-0 flex-col gap-2 p-4">
+        <div className="flex items-center gap-2">
+          <input
+            className="input flex-1"
+            placeholder="简历名称（保存用）"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+          <button type="button" className="btn-secondary" onClick={download} disabled={!typstSource}>
+            下载 PDF
+          </button>
+          <button type="button" className="btn-primary" onClick={save} disabled={!typstSource || saving}>
+            {saving ? "保存中…" : "保存"}
+          </button>
+        </div>
+        {savedId && <div className="text-sm text-green-600">已保存</div>}
+        {compileInfo.pageCount > 1 && (
+          <div className="flex items-center justify-between rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+            <span>当前 {compileInfo.pageCount} 页，超出一页限制</span>
+            <button type="button" className="btn-secondary" onClick={shortenToOnePage} disabled={generating}>
+              自动压缩到一页
+            </button>
+          </div>
+        )}
+        <TypstPreview source={typstSource} className="min-h-0 flex-1" onCompiled={setCompileInfo} />
+      </div>
+    </div>
+  );
+}

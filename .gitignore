@@ -36,6 +36,17 @@ yarn-error.log*
 # vercel
 .vercel
 
+# prisma / local sqlite db
+/dev.db
+/dev.db-journal
+/src/generated/prisma
+
+# generated resume PDFs (local storage, not source)
+/storage/resumes/*.pdf
+
+# typst.ts wasm assets, copied from node_modules by scripts/copy-typst-wasm.mjs
+/public/typst/*.wasm
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
