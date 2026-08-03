@@ -18,9 +18,11 @@ const MAX_SCALE = 4;
 
 export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }: Props) {
   const [svg, setSvg] = useState("");
+  const [size, setSize] = useState({ width: 0, height: 0 });
   const [error, setError] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const onCompiledRef = useRef(onCompiled);
   useEffect(() => {
@@ -28,15 +30,16 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }
   });
 
   const generationRef = useRef(0);
-  const dragRef = useRef({ dragging: false, startX: 0, startY: 0, origX: 0, origY: 0 });
+  const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startScrollLeft: 0, startScrollTop: 0 });
 
   useEffect(() => {
     const generation = ++generationRef.current;
     const handle = setTimeout(async () => {
       try {
-        const { svg: compiled, pageCount } = await compileTypstSvg(source);
+        const { svg: compiled, pageCount, width, height } = await compileTypstSvg(source);
         if (generationRef.current !== generation) return;
         setSvg(compiled);
+        setSize({ width, height });
         setError(null);
         onCompiledRef.current?.({ pageCount, error: null });
       } catch (err) {
@@ -51,25 +54,35 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }
 
   function resetView() {
     setScale(1);
-    setOffset({ x: 0, y: 0 });
+    containerRef.current?.scrollTo({ top: 0, left: 0 });
   }
 
+  // Plain wheel scrolls the page stack natively (up/down through pages, or
+  // sideways when zoomed in). Ctrl/Cmd+wheel zooms instead, like a PDF viewer.
   function onWheel(e: ReactWheelEvent<HTMLDivElement>) {
+    if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s * (e.deltaY < 0 ? 1.1 : 0.9))));
   }
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
-    dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, origX: offset.x, origY: offset.y };
+    const el = containerRef.current;
+    if (!el) return;
+    dragRef.current = {
+      dragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      startScrollLeft: el.scrollLeft,
+      startScrollTop: el.scrollTop,
+    };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
-    if (!dragRef.current.dragging) return;
-    setOffset({
-      x: dragRef.current.origX + (e.clientX - dragRef.current.startX),
-      y: dragRef.current.origY + (e.clientY - dragRef.current.startY),
-    });
+    const el = containerRef.current;
+    if (!dragRef.current.dragging || !el) return;
+    el.scrollLeft = dragRef.current.startScrollLeft - (e.clientX - dragRef.current.startX);
+    el.scrollTop = dragRef.current.startScrollTop - (e.clientY - dragRef.current.startY);
   }
 
   function onPointerUp() {
@@ -101,9 +114,11 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }
         >
           重置视图
         </button>
+        <span className="ml-auto text-xs text-neutral-400">滚轮翻页 · ⌘/Ctrl+滚轮缩放 · 拖动平移</span>
       </div>
       <div
-        className="relative flex-1 min-h-0 overflow-hidden rounded border bg-neutral-100 dark:bg-neutral-900 touch-none cursor-grab active:cursor-grabbing"
+        ref={containerRef}
+        className="relative flex-1 min-h-0 overflow-auto rounded border bg-neutral-200 touch-none cursor-grab active:cursor-grabbing dark:bg-neutral-800"
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -115,14 +130,18 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }
             {error}
           </div>
         )}
-        <div
-          style={{
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-            transformOrigin: "top left",
-            width: "fit-content",
-          }}
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+        <div style={{ width: size.width * scale, height: size.height * scale }} className="p-4">
+          <div
+            style={{
+              width: size.width,
+              height: size.height,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+            }}
+            className="shadow-md"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        </div>
       </div>
     </div>
   );

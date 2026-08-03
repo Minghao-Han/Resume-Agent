@@ -18,15 +18,18 @@ model PersonalInfo {
 }
 
 model Education {
-  id             String       @id @default(uuid())
-  school         String
-  degree         String
-  major          String
-  startDate      String
-  endDate        String
-  sortOrder      Int          @default(0)
-  personalInfo   PersonalInfo @relation(fields: [personalInfoId], references: [id], onDelete: Cascade)
-  personalInfoId Int
+  id              String       @id @default(uuid())
+  school          String
+  degree          String
+  major           String
+  startDate       String
+  endDate         String
+  region          String       @default("") // City, State or City, Country
+  relevantCourses String       @default("")
+  gpa             String       @default("") // optional, empty string if not provided
+  sortOrder       Int          @default(0)
+  personalInfo    PersonalInfo @relation(fields: [personalInfoId], references: [id], onDelete: Cascade)
+  personalInfoId  Int
 }
 
 // type: "intern" | "project"

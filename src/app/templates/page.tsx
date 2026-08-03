@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { DEFAULT_TYPST_TEMPLATE } from "@/lib/defaultTemplate";
+import { useIsDarkMode } from "@/lib/useIsDarkMode";
+import { toast } from "@/lib/toast";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean; updatedAt: string };
 type Template = TemplateSummary & { typstSource: string };
@@ -15,6 +17,7 @@ export default function TemplatesPage() {
   const [source, setSource] = useState(DEFAULT_TYPST_TEMPLATE);
   const [saving, setSaving] = useState(false);
   const [compileInfo, setCompileInfo] = useState<TypstCompileInfo>({ pageCount: 0, error: null });
+  const isDark = useIsDarkMode();
 
   async function refreshList() {
     const res = await fetch("/api/templates");
@@ -63,6 +66,7 @@ export default function TemplatesPage() {
         setSelectedId(created.id);
       }
       await refreshList();
+      toast("已保存");
     } finally {
       setSaving(false);
     }
@@ -74,6 +78,7 @@ export default function TemplatesPage() {
     await fetch(`/api/templates/${selectedId}`, { method: "DELETE" });
     startNew();
     await refreshList();
+    toast("已删除");
   }
 
   return (
@@ -114,6 +119,7 @@ export default function TemplatesPage() {
           <CodeMirror
             value={source}
             height="100%"
+            theme={isDark ? "dark" : "light"}
             onChange={(value) => setSource(value)}
             style={{ height: "100%", fontSize: 13 }}
           />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
+import { toast } from "@/lib/toast";
 
 type ExperienceType = "intern" | "project";
 
@@ -169,6 +170,7 @@ export default function ExperiencePage() {
       const saved: Experience = await res.json();
       setCurrent(saved);
       await refreshList();
+      toast("已保存");
     } finally {
       setSaving(false);
     }

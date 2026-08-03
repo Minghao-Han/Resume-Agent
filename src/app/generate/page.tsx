@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
 import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { compileTypstPdf, downloadPdfBytes } from "@/lib/typstClient";
+import { toast } from "@/lib/toast";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean };
 
@@ -22,7 +23,6 @@ export default function GeneratePage() {
   const [compileInfo, setCompileInfo] = useState<TypstCompileInfo>({ pageCount: 0, error: null });
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savedId, setSavedId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/templates")
@@ -37,7 +37,6 @@ export default function GeneratePage() {
   async function generate() {
     if (!jdText.trim() || !templateId) return;
     setGenerating(true);
-    setSavedId(null);
     try {
       const res = await fetch("/api/resume/generate", {
         method: "POST",
@@ -103,7 +102,7 @@ export default function GeneratePage() {
         headers: { "Content-Type": "application/pdf" },
         body: pdfBytes as BodyInit,
       });
-      setSavedId(created.id);
+      toast("已保存");
     } finally {
       setSaving(false);
     }
@@ -161,7 +160,6 @@ export default function GeneratePage() {
             {saving ? "保存中…" : "保存"}
           </button>
         </div>
-        {savedId && <div className="text-sm text-green-600">已保存</div>}
         {compileInfo.pageCount > 1 && (
           <div className="flex items-center justify-between rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
             <span>当前 {compileInfo.pageCount} 页，超出一页限制</span>

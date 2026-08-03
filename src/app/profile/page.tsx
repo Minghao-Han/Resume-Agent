@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { toast } from "@/lib/toast";
 
 type Education = {
   id?: string;
@@ -10,6 +11,9 @@ type Education = {
   major: string;
   startDate: string;
   endDate: string;
+  region: string;
+  relevantCourses: string;
+  gpa: string;
 };
 
 type Profile = {
@@ -20,14 +24,22 @@ type Profile = {
   educations: Education[];
 };
 
-const EMPTY_EDUCATION: Education = { school: "", degree: "", major: "", startDate: "", endDate: "" };
+const EMPTY_EDUCATION: Education = {
+  school: "",
+  degree: "",
+  major: "",
+  startDate: "",
+  endDate: "",
+  region: "",
+  relevantCourses: "",
+  gpa: "",
+};
 const EMPTY_PROFILE: Profile = { name: "", phone: "", email: "", location: "", educations: [] };
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -65,7 +77,7 @@ export default function ProfilePage() {
       });
       const data: Profile = await res.json();
       setProfile(data);
-      setSavedAt(Date.now());
+      toast("已保存");
     } finally {
       setSaving(false);
     }
@@ -149,6 +161,14 @@ export default function ProfilePage() {
                     onChange={(e) => updateEducation(i, { major: e.target.value })}
                   />
                 </Field>
+                <Field label="所在地">
+                  <input
+                    className="input"
+                    placeholder="City, State 或 City, Country"
+                    value={edu.region}
+                    onChange={(e) => updateEducation(i, { region: e.target.value })}
+                  />
+                </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="起始">
                     <input
@@ -167,6 +187,25 @@ export default function ProfilePage() {
                     />
                   </Field>
                 </div>
+                <Field label="GPA（可选）">
+                  <input
+                    className="input"
+                    placeholder="3.8/4.0"
+                    value={edu.gpa}
+                    onChange={(e) => updateEducation(i, { gpa: e.target.value })}
+                  />
+                </Field>
+                <div className="col-span-2">
+                  <Field label="相关课程">
+                    <textarea
+                      className="textarea"
+                      rows={2}
+                      placeholder="Data Structures, Machine Learning, ..."
+                      value={edu.relevantCourses}
+                      onChange={(e) => updateEducation(i, { relevantCourses: e.target.value })}
+                    />
+                  </Field>
+                </div>
               </div>
             </div>
           ))}
@@ -180,7 +219,6 @@ export default function ProfilePage() {
         <button type="button" onClick={save} disabled={saving} className="btn-primary">
           {saving ? "保存中…" : "保存"}
         </button>
-        {savedAt && <span className="text-sm text-neutral-500">已保存</span>}
       </div>
     </div>
   );

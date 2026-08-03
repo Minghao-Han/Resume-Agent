@@ -18,7 +18,16 @@ export type PersonalInfoForPrompt = {
   phone: string;
   email: string;
   location: string;
-  educations: { school: string; degree: string; major: string; startDate: string; endDate: string }[];
+  educations: {
+    school: string;
+    degree: string;
+    major: string;
+    startDate: string;
+    endDate: string;
+    region: string;
+    relevantCourses: string;
+    gpa: string;
+  }[];
 };
 
 const SYSTEM_PROMPT = `You write tailored one-page resumes in Typst for a resume-building tool.

@@ -9,6 +9,9 @@ const educationSchema = z.object({
   major: z.string(),
   startDate: z.string(),
   endDate: z.string(),
+  region: z.string().default(""),
+  relevantCourses: z.string().default(""),
+  gpa: z.string().default(""),
 });
 
 const profileSchema = z.object({
@@ -53,6 +56,9 @@ export async function PUT(request: Request) {
           major: edu.major,
           startDate: edu.startDate,
           endDate: edu.endDate,
+          region: edu.region,
+          relevantCourses: edu.relevantCourses,
+          gpa: edu.gpa,
           sortOrder: index,
           personalInfoId: current.id,
         })),

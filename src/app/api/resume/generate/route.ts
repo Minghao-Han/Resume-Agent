@@ -50,6 +50,9 @@ export async function POST(request: Request) {
         major: e.major,
         startDate: e.startDate,
         endDate: e.endDate,
+        region: e.region,
+        relevantCourses: e.relevantCourses,
+        gpa: e.gpa,
       })),
     },
     experiences: experiences.map((e) => ({
