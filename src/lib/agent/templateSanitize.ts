@@ -3,7 +3,10 @@ import type { PersonalInfoForPrompt } from "./resumeGen";
 // Common variable names Typst resume templates use for personal info, mapped
 // to the corresponding PersonalInfo field (or null if we have no field for
 // it and should just blank it out).
-const PERSONAL_INFO_VAR_MAP: Record<string, "name" | "email" | "phone" | "location" | null> = {
+const PERSONAL_INFO_VAR_MAP: Record<
+  string,
+  "name" | "email" | "phone" | "location" | "github" | "linkedin" | null
+> = {
   name: "name",
   fullname: "name",
   author: "name",
@@ -14,8 +17,8 @@ const PERSONAL_INFO_VAR_MAP: Record<string, "name" | "email" | "phone" | "locati
   mobile: "phone",
   location: "location",
   address: "location",
-  github: null,
-  linkedin: null,
+  github: "github",
+  linkedin: "linkedin",
   website: null,
   homepage: null,
   portfolio: null,

@@ -18,6 +18,8 @@ export const experienceInputSchema = z.object({
   title: z.string(),
   org: z.string(),
   type: z.enum(["intern", "project"]),
+  startDate: z.string().default(""),
+  endDate: z.string().default(""),
   rawInput: z.string(),
   chatHistory: z.array(chatMessageSchema).default([]),
   sessionId: z.string().optional(),

@@ -20,6 +20,8 @@ const profileSchema = z.object({
   phone: z.string(),
   email: z.string(),
   location: z.string(),
+  github: z.string().default(""),
+  linkedin: z.string().default(""),
   educations: z.array(educationSchema),
 });
 
@@ -51,7 +53,14 @@ export async function PUT(request: Request) {
     const updated = await prisma.$transaction(async (tx) => {
       await tx.personalInfo.update({
         where: { id: current.id },
-        data: { name: body.name, phone: body.phone, email: body.email, location: body.location },
+        data: {
+          name: body.name,
+          phone: body.phone,
+          email: body.email,
+          location: body.location,
+          github: body.github,
+          linkedin: body.linkedin,
+        },
       });
       await tx.education.deleteMany({ where: { personalInfoId: current.id } });
       if (body.educations.length > 0) {

@@ -19,6 +19,8 @@ export type ExperienceForPrompt = {
   title: string;
   org: string;
   type: string;
+  startDate: string;
+  endDate: string;
   highlights: HighlightForPrompt[];
 };
 
@@ -27,6 +29,8 @@ export type PersonalInfoForPrompt = {
   phone: string;
   email: string;
   location: string;
+  github: string;
+  linkedin: string;
   educations: {
     school: string;
     degree: string;
@@ -41,7 +45,7 @@ export type PersonalInfoForPrompt = {
 
 const SYSTEM_PROMPT = `You write tailored one-page resumes in Typst for a resume-building tool.
 
-You will be given: the user's personal info, a job description (JD, possibly as a URL you must fetch with WebFetch), a library of the user's past experiences, and a Typst template to use as a style/layout reference. Each experience (e.g. one internship) contains one or more independently STAR-Q'd highlights, each with its own role tags and a pre-written resumeBullet.
+You will be given: the user's personal info (including optional GitHub/LinkedIn — include them in the header only if non-empty), a job description (JD, possibly as a URL you must fetch with WebFetch), a library of the user's past experiences, and a Typst template to use as a style/layout reference. Each experience (e.g. one internship) has its own startDate/endDate and contains one or more independently STAR-Q'd highlights, each with its own role tags and a pre-written resumeBullet. Use the experience's own startDate/endDate for its date range on the resume — don't write a placeholder like "[Dates Not Provided]" when they're actually given.
 
 Your job:
 1. Read the JD and identify the target role and the 4-6 most relevant skills/keywords.

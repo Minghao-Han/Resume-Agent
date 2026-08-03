@@ -22,6 +22,8 @@ type Profile = {
   phone: string;
   email: string;
   location: string;
+  github: string;
+  linkedin: string;
   educations: Education[];
 };
 
@@ -35,7 +37,15 @@ const EMPTY_EDUCATION: Education = {
   relevantCourses: "",
   gpa: "",
 };
-const EMPTY_PROFILE: Profile = { name: "", phone: "", email: "", location: "", educations: [] };
+const EMPTY_PROFILE: Profile = {
+  name: "",
+  phone: "",
+  email: "",
+  location: "",
+  github: "",
+  linkedin: "",
+  educations: [],
+};
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
@@ -113,6 +123,22 @@ export default function ProfilePage() {
             className="input"
             value={profile.location}
             onChange={(e) => updateField("location", e.target.value)}
+          />
+        </Field>
+        <Field label="GitHub">
+          <input
+            className="input"
+            placeholder="github.com/yourname"
+            value={profile.github}
+            onChange={(e) => updateField("github", e.target.value)}
+          />
+        </Field>
+        <Field label="LinkedIn">
+          <input
+            className="input"
+            placeholder="linkedin.com/in/yourname"
+            value={profile.linkedin}
+            onChange={(e) => updateField("linkedin", e.target.value)}
           />
         </Field>
       </div>

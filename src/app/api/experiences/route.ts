@@ -23,6 +23,8 @@ export async function POST(request: Request) {
         title: body.title,
         org: body.org,
         type: body.type,
+        startDate: body.startDate,
+        endDate: body.endDate,
         rawInput: body.rawInput,
         sessionId: body.sessionId,
         chatHistory: JSON.stringify(body.chatHistory),

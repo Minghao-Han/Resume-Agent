@@ -53,6 +53,8 @@ async function handlePost(request: Request) {
       phone: personalInfo?.phone ?? "",
       email: personalInfo?.email ?? "",
       location: personalInfo?.location ?? "",
+      github: personalInfo?.github ?? "",
+      linkedin: personalInfo?.linkedin ?? "",
       educations: (personalInfo?.educations ?? []).map((e) => ({
         school: e.school,
         degree: e.degree,
@@ -69,6 +71,8 @@ async function handlePost(request: Request) {
       title: e.title,
       org: e.org,
       type: e.type,
+      startDate: e.startDate,
+      endDate: e.endDate,
       highlights: e.highlights.map((h) => ({
         id: h.id,
         title: h.title,

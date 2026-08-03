@@ -28,6 +28,8 @@ type Highlight = {
 };
 
 type Experience = ExperienceSummary & {
+  startDate: string;
+  endDate: string;
   rawInput: string;
   chatHistory: ChatMessage[];
   sessionId?: string | null;
@@ -50,6 +52,8 @@ const EMPTY: Experience = {
   title: "",
   org: "",
   type: "intern",
+  startDate: "",
+  endDate: "",
   rawInput: "",
   chatHistory: [],
   sessionId: null,
@@ -174,6 +178,8 @@ export default function ExperiencePage() {
         title: current.title,
         org: current.org,
         type: current.type,
+        startDate: current.startDate,
+        endDate: current.endDate,
         rawInput: current.rawInput,
         chatHistory: current.chatHistory,
         sessionId: current.sessionId ?? undefined,
@@ -259,6 +265,20 @@ export default function ExperiencePage() {
               <option value="intern">实习</option>
               <option value="project">项目</option>
             </select>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="input"
+                placeholder="起始 2025-06"
+                value={current.startDate}
+                onChange={(e) => setCurrent((c) => ({ ...c, startDate: e.target.value }))}
+              />
+              <input
+                className="input"
+                placeholder="结束 2025-08"
+                value={current.endDate}
+                onChange={(e) => setCurrent((c) => ({ ...c, endDate: e.target.value }))}
+              />
+            </div>
           </div>
           <textarea
             className="textarea w-full"

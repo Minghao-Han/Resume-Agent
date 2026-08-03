@@ -13,6 +13,8 @@ model PersonalInfo {
   phone      String      @default("")
   email      String      @default("")
   location   String      @default("")
+  github     String      @default("")
+  linkedin   String      @default("")
   educations Education[]
   updatedAt  DateTime    @updatedAt
 }
@@ -41,6 +43,8 @@ model Experience {
   title       String
   org         String
   type        String
+  startDate   String      @default("")
+  endDate     String      @default("")
   rawInput    String
   chatHistory String      @default("[]") // JSON {role, content}[]
   sessionId   String? // Claude Agent SDK session id, so chat can resume() after reload
