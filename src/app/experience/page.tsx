@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
+import { ChatPanel, type ChatMessage, type MentionItem } from "@/components/ChatPanel";
 import { toast } from "@/lib/toast";
 
 type ExperienceType = "intern" | "project";
@@ -106,14 +106,32 @@ export default function ExperiencePage() {
     }
   }
 
-  async function sendChat(text: string) {
+  function buildHighlightsContextMessage(text: string, mentionedIndexes: number[]): string {
+    const indexed = current.highlights.map((h, i) => ({ index: i, ...h }));
+    const targetNote =
+      mentionedIndexes.length > 0
+        ? `\n\nThe user @mentioned highlight index(es) ${mentionedIndexes.join(
+            ", "
+          )} in their message below (matching the "index" field above) — apply their request only to those, and leave every other highlight in the list exactly as it currently is.`
+        : "";
+    return [
+      `Current highlights (JSON, "index" matches list order — keep any highlight not targeted below exactly unchanged, including ones not mentioned in this message):`,
+      JSON.stringify(indexed, null, 2),
+      targetNote,
+      `\nUser message:\n${text}`,
+    ].join("\n");
+  }
+
+  async function sendChat(text: string, mentionedIds: string[] = []) {
     setCurrent((c) => ({ ...c, chatHistory: [...c.chatHistory, { role: "user", content: text }] }));
     setSending(true);
     try {
+      const mentionedIndexes = mentionedIds.map((id) => Number(id)).filter((n) => !Number.isNaN(n));
+      const apiMessage = buildHighlightsContextMessage(text, mentionedIndexes);
       const res = await fetch("/api/experience/distill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, sessionId: current.sessionId ?? undefined }),
+        body: JSON.stringify({ message: apiMessage, sessionId: current.sessionId ?? undefined }),
       });
       const data: { sessionId?: string; reply: string; highlights: Highlight[] | null } = await res.json();
       setCurrent((c) => ({
@@ -266,6 +284,9 @@ export default function ExperiencePage() {
           onSend={sendChat}
           sending={sending}
           placeholder="继续和 Claude 对话，调整提取结果…"
+          mentionables={current.highlights.map(
+            (h, i): MentionItem => ({ id: String(i), label: h.title || `Highlight ${i + 1}` })
+          )}
         />
       </div>
     </div>
