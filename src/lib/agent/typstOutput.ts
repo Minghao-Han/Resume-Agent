@@ -1,3 +1,48 @@
+/** Marks, for each index in `source`, whether that character sits inside a
+ * Typst string literal or comment (as opposed to real markup/code) — used
+ * by every fix below to avoid touching string/comment content. */
+function computeCodeMask(source: string): boolean[] {
+  const mask = new Array<boolean>(source.length).fill(true);
+  let inString = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    const next = source[i + 1];
+    const prev = i > 0 ? source[i - 1] : "";
+
+    if (inLineComment) {
+      mask[i] = false;
+      if (ch === "\n") inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      mask[i] = false;
+      if (prev === "*" && ch === "/") inBlockComment = false;
+      continue;
+    }
+    if (!inString && ch === "/" && next === "/") {
+      inLineComment = true;
+      mask[i] = false;
+      continue;
+    }
+    if (!inString && ch === "/" && next === "*") {
+      inBlockComment = true;
+      mask[i] = false;
+      continue;
+    }
+    if (ch === '"' && prev !== "\\") {
+      inString = !inString;
+      mask[i] = false;
+      continue;
+    }
+    if (inString) mask[i] = false;
+  }
+
+  return mask;
+}
+
 /**
  * Escapes two categories of stray special characters that keep showing up
  * unescaped in model-generated resume prose and breaking compilation:
@@ -18,7 +63,7 @@
  * `#let email = "a@b.com"`, where the char is just string content, not
  * markup), and ones inside comments (Typst never parses either there).
  */
-export function sanitizeGeneratedTypst(source: string): string {
+function escapeStraySpecialChars(source: string): string {
   let result = "";
   let inString = false;
   let inLineComment = false;
@@ -66,4 +111,41 @@ export function sanitizeGeneratedTypst(source: string): string {
   }
 
   return result;
+}
+
+/**
+ * Fixes a subtle Typst parsing ambiguity that produced a real "unclosed
+ * delimiter" error: `_#identifier_` (interpolating a bare variable inside
+ * emphasis markup, e.g. `_#degree_` to italicize a value) gets misparsed
+ * because "_" is a valid identifier-continuation character in Typst — the
+ * trailing "_" is swallowed into the variable's name (parsed as a reference
+ * to a variable literally called `degree_`) instead of closing the
+ * emphasis, leaving the opening "_" with no matching close. Verified
+ * directly: `_#degree_` fails to compile, `_#(degree)_` compiles fine.
+ * Wrapping the interpolation in parens is always semantically equivalent
+ * for a bare identifier, so this rewrite is safe even in the (very
+ * unlikely) case a variable is genuinely named with a trailing underscore.
+ */
+function wrapAmbiguousUnderscoreInterpolation(source: string): string {
+  const mask = computeCodeMask(source);
+  const pattern = /_#([A-Za-z_][\w-]*)_/g;
+  let result = "";
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(source))) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const isRealCode = mask.slice(start, end).every(Boolean);
+    result += source.slice(lastIndex, start);
+    result += isRealCode ? `_#(${match[1]})_` : match[0];
+    lastIndex = end;
+  }
+  result += source.slice(lastIndex);
+
+  return result;
+}
+
+export function sanitizeGeneratedTypst(source: string): string {
+  return wrapAmbiguousUnderscoreInterpolation(escapeStraySpecialChars(source));
 }

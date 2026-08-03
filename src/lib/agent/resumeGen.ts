@@ -60,6 +60,8 @@ CRITICAL — Typst constraints: the compiler here has no package registry access
 
 CRITICAL — Typst escaping: an unescaped "@" followed by a letter/digit (e.g. "@Version", "@Override", an unescaped email/handle) is parsed by Typst as a citation/label reference and will fail to compile with "label <...> does not exist" — write it as "\\@" instead. Likewise an unescaped "$" followed by a digit (e.g. a dollar amount like "$800") starts Typst math mode and will break compilation or rendering — write it as "\\$" instead. Both apply anywhere in resume prose/bullets, including inside annotation names, handles, emails, or monetary figures.
 
+CRITICAL — Typst interpolation: never write a bare variable interpolation immediately touching an underscore on either side, e.g. \`_#degree_\` to italicize a value — "_" is a valid identifier character in Typst, so \`#degree_\` parses as a reference to a variable literally named "degree_" and swallows the underscore meant to close the emphasis, causing "unclosed delimiter". Always parenthesize the interpolation in that situation: write \`_#(degree)_\` instead.
+
 Output format (every single reply, including follow-up refinements): first briefly explain what you changed and why in 2-4 sentences, then output the COMPLETE current resume Typst source (not a diff) in a fenced code block tagged \`\`\`typst. Always include the full source so the caller can always re-render from your latest reply alone.
 
 If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest experience) rather than shrinking font/margins below readable sizes.`;
