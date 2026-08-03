@@ -128,6 +128,12 @@ export default function TemplatesPage() {
         </span>
       </div>
 
+      {templates.length === 0 && (
+        <p className="mb-3 text-sm text-neutral-500">
+          还没有保存过任何模板——下面是一个空白起点，编辑好之后点击「保存为模板」创建第一个。
+        </p>
+      )}
+
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
         <div className="min-h-0 overflow-hidden rounded border border-neutral-200 dark:border-neutral-800">
           <CodeMirror

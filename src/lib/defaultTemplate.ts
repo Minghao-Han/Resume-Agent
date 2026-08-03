@@ -1,5 +1,6 @@
-export const DEFAULT_TEMPLATE_NAME = "默认模板";
-
+// Starting-point skeleton for the template editor's "新建" flow only — never
+// used as a fallback for resume generation. The DB is always the source of
+// truth for which templates exist; nothing should silently create rows here.
 export const DEFAULT_TYPST_TEMPLATE = `#set page(width: 21cm, height: 29.7cm, margin: (x: 1.8cm, y: 1.6cm))
 #set text(size: 10pt)
 #set par(justify: true, leading: 0.55em)

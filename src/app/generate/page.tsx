@@ -123,15 +123,28 @@ export default function GeneratePage() {
   return (
     <div className="grid h-full min-h-0 grid-cols-2">
       <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-neutral-200 p-4 dark:border-neutral-800">
-        <div className="flex gap-2">
-          <select className="input" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+        <label className="flex items-center gap-2 text-sm">
+          <span className="shrink-0 text-neutral-600 dark:text-neutral-400">使用模板</span>
+          <select
+            className="input flex-1"
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+            disabled={templates.length === 0}
+          >
+            {templates.length === 0 && <option value="">（还没有模板）</option>}
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
+                {t.isDefault ? " · 默认" : ""}
               </option>
             ))}
           </select>
-        </div>
+        </label>
+        {templates.length === 0 && (
+          <p className="text-sm text-neutral-500">
+            还没有可用的简历模板，先去「模板编辑」页创建一个吧。
+          </p>
+        )}
         <textarea
           className="textarea w-full"
           rows={6}
@@ -139,7 +152,12 @@ export default function GeneratePage() {
           value={jdText}
           onChange={(e) => setJdText(e.target.value)}
         />
-        <button type="button" className="btn-primary" onClick={generate} disabled={generating || !jdText.trim()}>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={generate}
+          disabled={generating || !jdText.trim() || !templateId}
+        >
           {generating ? "生成中…" : sessionId ? "重新生成" : "生成简历"}
         </button>
 
