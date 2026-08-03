@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { CanUseTool } from "@anthropic-ai/claude-agent-sdk";
+import { deleteSession, type CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { runAgentTurn, PROJECT_ROOT } from "./core";
 
 const CLAUDE_DIR = path.resolve(PROJECT_ROOT, ".claude");
@@ -55,4 +55,19 @@ export async function runAssistantTurn(params: {
   });
 
   return { sessionId: newSessionId, reply: replyText, isError };
+}
+
+/**
+ * Starts a fresh assistant conversation by deleting the old session's
+ * on-disk transcript (not just dropping our reference to it) — best-effort:
+ * if the old session is already gone or deletion otherwise fails, that
+ * shouldn't block the user from starting a new conversation.
+ */
+export async function resetAssistantSession(oldSessionId?: string): Promise<void> {
+  if (!oldSessionId) return;
+  try {
+    await deleteSession(oldSessionId, { dir: PROJECT_ROOT });
+  } catch {
+    // best-effort cleanup; ignore failures (e.g. session already gone)
+  }
 }

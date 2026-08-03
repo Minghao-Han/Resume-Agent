@@ -62,6 +62,21 @@ export function AssistantDrawer() {
     setY(window.innerHeight - TAB_SIZE - 96);
   }, []);
 
+  async function startNewSession() {
+    if (sending) return;
+    const oldSessionId = sessionId;
+    setSessionId(undefined);
+    setMessages([]);
+    if (oldSessionId) {
+      try {
+        await apiPost("/api/assistant/new-session", { sessionId: oldSessionId });
+      } catch {
+        // best-effort: local state is already reset regardless
+      }
+    }
+    toast("已开启新对话");
+  }
+
   async function handleSend(text: string) {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setSending(true);
@@ -143,8 +158,17 @@ export function AssistantDrawer() {
           style={panelStyle()}
           className="fixed right-16 z-40 flex h-[32rem] w-96 flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-950"
         >
-          <div className="border-b border-neutral-200 px-3 py-2 text-sm font-medium dark:border-neutral-800">
-            助手 · 调整 skills / memory
+          <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
+            <span className="text-sm font-medium">助手 · 调整 skills / memory</span>
+            <button
+              type="button"
+              onClick={startNewSession}
+              disabled={sending}
+              className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
+              title="开启新对话（会删除旧的会话记录）"
+            >
+              + 新对话
+            </button>
           </div>
           <ChatPanel
             className="min-h-0 flex-1"
