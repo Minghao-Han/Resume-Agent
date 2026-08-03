@@ -192,6 +192,15 @@ export default function ExperiencePage() {
     }
   }
 
+  async function deleteExperience(id: string) {
+    const target = list.find((e) => e.id === id);
+    if (!confirm(`删除经历「${target?.title || "未命名"}」？其下所有 highlight 也会被删除。`)) return;
+    await fetch(`/api/experiences/${id}`, { method: "DELETE" });
+    if (current.id === id) setCurrent(EMPTY);
+    await refreshList();
+    toast("已删除");
+  }
+
   return (
     <div className="flex h-full min-h-0">
       <aside className="w-56 shrink-0 overflow-y-auto border-r border-neutral-200 p-3 dark:border-neutral-800">
@@ -200,17 +209,29 @@ export default function ExperiencePage() {
         </button>
         <div className="flex flex-col gap-1">
           {list.map((e) => (
-            <button
+            <div
               key={e.id}
-              type="button"
-              onClick={() => loadExperience(e.id)}
-              className={`rounded px-2 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 ${
+              className={`group flex items-center rounded hover:bg-black/5 dark:hover:bg-white/10 ${
                 current.id === e.id ? "bg-black/5 dark:bg-white/10" : ""
               }`}
             >
-              <div className="truncate font-medium">{e.title || "(未命名)"}</div>
-              <div className="truncate text-xs text-neutral-500">{e.org}</div>
-            </button>
+              <button
+                type="button"
+                onClick={() => loadExperience(e.id)}
+                className="min-w-0 flex-1 px-2 py-1.5 text-left text-sm"
+              >
+                <div className="truncate font-medium">{e.title || "(未命名)"}</div>
+                <div className="truncate text-xs text-neutral-500">{e.org}</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteExperience(e.id)}
+                title="删除经历"
+                className="mr-1 shrink-0 rounded px-1.5 py-1 text-xs text-neutral-400 opacity-0 hover:text-red-500 group-hover:opacity-100"
+              >
+                ×
+              </button>
+            </div>
           ))}
         </div>
       </aside>
