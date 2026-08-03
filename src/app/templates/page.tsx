@@ -6,6 +6,7 @@ import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { DEFAULT_TYPST_TEMPLATE } from "@/lib/defaultTemplate";
 import { useIsDarkMode } from "@/lib/useIsDarkMode";
 import { toast } from "@/lib/toast";
+import { typstLanguage } from "@/lib/typstLanguage";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean; updatedAt: string };
 type Template = TemplateSummary & { typstSource: string };
@@ -120,6 +121,7 @@ export default function TemplatesPage() {
             value={source}
             height="100%"
             theme={isDark ? "dark" : "light"}
+            extensions={[typstLanguage]}
             onChange={(value) => setSource(value)}
             style={{ height: "100%", fontSize: 13 }}
           />
