@@ -83,7 +83,7 @@ export default function ProfilePage() {
   if (loading) return <div className="p-6 text-sm text-neutral-500">加载中…</div>;
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
+    <div className="mx-auto h-full max-w-2xl overflow-y-auto p-6">
       <h1 className="mb-6 text-xl font-semibold">个人信息</h1>
 
       <div className="grid grid-cols-2 gap-4">

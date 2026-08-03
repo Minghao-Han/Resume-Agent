@@ -10,7 +10,7 @@ const CARDS = [
 
 export default function Home() {
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto h-full max-w-3xl overflow-y-auto p-8">
       <h1 className="mb-2 text-2xl font-semibold">Resume Tailor</h1>
       <p className="mb-8 text-sm text-neutral-500">
         用 Claude 帮你把经历整理成结构化条目，再根据 JD 生成 tailored 简历。右下角可以随时打开助手调整 skill / memory。

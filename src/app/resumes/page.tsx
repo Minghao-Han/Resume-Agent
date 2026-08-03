@@ -34,7 +34,7 @@ export default function ResumesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="mx-auto h-full max-w-5xl overflow-y-auto p-6">
       <h1 className="mb-4 text-xl font-semibold">历史简历</h1>
       {resumes.length === 0 && <p className="text-sm text-neutral-500">还没有生成过简历。</p>}
       <div className="grid grid-cols-2 gap-4">
