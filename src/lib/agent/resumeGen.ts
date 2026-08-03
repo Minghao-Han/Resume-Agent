@@ -62,7 +62,7 @@ CRITICAL — Typst escaping: an unescaped "@" followed by a letter/digit (e.g. "
 
 CRITICAL — Typst interpolation: never write a bare variable interpolation immediately touching an underscore on either side, e.g. \`_#degree_\` to italicize a value — "_" is a valid identifier character in Typst, so \`#degree_\` parses as a reference to a variable literally named "degree_" and swallows the underscore meant to close the emphasis, causing "unclosed delimiter". Always parenthesize the interpolation in that situation: write \`_#(degree)_\` instead.
 
-Output format (every single reply, including follow-up refinements): first briefly explain what you changed and why in 2-4 sentences, then output the COMPLETE current resume Typst source (not a diff) in a fenced code block tagged \`\`\`typst. Always include the full source so the caller can always re-render from your latest reply alone.
+Output format (every single reply, including follow-up refinements): first output a fenced block tagged \`\`\`meta containing exactly two lines identifying the target company and role this resume is for (read from the JD) — \`COMPANY: <company name, or empty after the colon if it can't be determined>\` and \`ROLE: <target role/title, or empty after the colon if it can't be determined>\`. Then briefly explain what you changed and why in 2-4 sentences, then output the COMPLETE current resume Typst source (not a diff) in a fenced code block tagged \`\`\`typst. Always include the full source so the caller can always re-render from your latest reply alone.
 
 If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest experience) rather than shrinking font/margins below readable sizes.`;
 
@@ -91,13 +91,32 @@ function extractCleanTypst(replyText: string): string | null {
   return raw === null ? null : sanitizeGeneratedTypst(raw);
 }
 
+function extractCompanyRole(replyText: string): { company: string; role: string } {
+  const meta = extractFencedBlock(replyText, "meta") ?? "";
+  const company = meta.match(/^COMPANY:\s*(.*)$/m)?.[1]?.trim() ?? "";
+  const role = meta.match(/^ROLE:\s*(.*)$/m)?.[1]?.trim() ?? "";
+  return { company, role };
+}
+
+/** Strips the internal ```meta block out of what's shown to the user in chat. */
+function stripMetaBlock(replyText: string): string {
+  return replyText.replace(/```meta\n[\s\S]*?```\n?/i, "").trim();
+}
+
 export async function startResumeGeneration(params: {
   jdText: string;
   jdIsUrl: boolean;
   personalInfo: PersonalInfoForPrompt;
   experiences: ExperienceForPrompt[];
   templateSource: string;
-}): Promise<{ sessionId: string | undefined; reply: string; typstSource: string | null; isError: boolean }> {
+}): Promise<{
+  sessionId: string | undefined;
+  reply: string;
+  typstSource: string | null;
+  company: string;
+  role: string;
+  isError: boolean;
+}> {
   const prompt = buildInitialPrompt(params);
 
   const { sessionId, replyText, isError } = await runAgentTurn(prompt, {
@@ -109,10 +128,14 @@ export async function startResumeGeneration(params: {
     permissionMode: "default",
   });
 
+  const { company, role } = isError ? { company: "", role: "" } : extractCompanyRole(replyText);
+
   return {
     sessionId,
-    reply: replyText,
+    reply: isError ? replyText : stripMetaBlock(replyText),
     typstSource: isError ? null : extractCleanTypst(replyText),
+    company,
+    role,
     isError,
   };
 }
@@ -120,7 +143,14 @@ export async function startResumeGeneration(params: {
 export async function continueResumeGeneration(params: {
   sessionId: string;
   message: string;
-}): Promise<{ sessionId: string | undefined; reply: string; typstSource: string | null; isError: boolean }> {
+}): Promise<{
+  sessionId: string | undefined;
+  reply: string;
+  typstSource: string | null;
+  company: string;
+  role: string;
+  isError: boolean;
+}> {
   const { sessionId, message } = params;
 
   const { sessionId: newSessionId, replyText, isError } = await runAgentTurn(message, {
@@ -133,10 +163,14 @@ export async function continueResumeGeneration(params: {
     permissionMode: "default",
   });
 
+  const { company, role } = isError ? { company: "", role: "" } : extractCompanyRole(replyText);
+
   return {
     sessionId: newSessionId,
-    reply: replyText,
+    reply: isError ? replyText : stripMetaBlock(replyText),
     isError,
     typstSource: isError ? null : extractCleanTypst(replyText),
+    company,
+    role,
   };
 }

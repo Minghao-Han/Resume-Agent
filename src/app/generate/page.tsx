@@ -24,6 +24,8 @@ export default function GeneratePage() {
   const [generating, setGenerating] = useState(false);
   const [compileInfo, setCompileInfo] = useState<TypstCompileInfo>({ pageCount: 0, error: null });
   const [label, setLabel] = useState("");
+  const [company, setCompany] = useState("");
+  const [targetRole, setTargetRole] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedTypstSnapshot, setSavedTypstSnapshot] = useState("");
 
@@ -47,6 +49,8 @@ export default function GeneratePage() {
         sessionId?: string;
         reply: string;
         typstSource: string | null;
+        company?: string;
+        role?: string;
         isError?: boolean;
       }>("/api/resume/generate", { jdText, jdIsUrl: looksLikeUrl(jdText), templateId });
       if (data.isError) toast(data.reply);
@@ -56,6 +60,8 @@ export default function GeneratePage() {
         { role: "assistant", content: data.reply },
       ]);
       if (data.typstSource) setTypstSource(data.typstSource);
+      if (data.company) setCompany(data.company);
+      if (data.role) setTargetRole(data.role);
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "生成失败，请重试");
     } finally {
@@ -72,12 +78,16 @@ export default function GeneratePage() {
         sessionId?: string;
         reply: string;
         typstSource: string | null;
+        company?: string;
+        role?: string;
         isError?: boolean;
       }>("/api/resume/generate", { sessionId, message: text });
       if (data.isError) toast(data.reply);
       setSessionId(data.sessionId ?? sessionId);
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
       if (data.typstSource) setTypstSource(data.typstSource);
+      if (data.company) setCompany(data.company);
+      if (data.role) setTargetRole(data.role);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "出错了，请重试";
       toast(message);
@@ -101,6 +111,8 @@ export default function GeneratePage() {
         label: label || `简历 ${new Date().toLocaleString()}`,
         jdSource: jdText,
         jdIsUrl: looksLikeUrl(jdText),
+        company,
+        targetRoleTag: targetRole,
         typstSource,
         chatHistory: messages,
       });
@@ -171,6 +183,11 @@ export default function GeneratePage() {
       </div>
 
       <div className="flex min-h-0 flex-col gap-2 p-4">
+        {(company || targetRole) && (
+          <div className="text-xs text-neutral-500">
+            识别到目标：{company || "（未知公司）"} · {targetRole || "（未知岗位）"}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <input
             className="input flex-1"

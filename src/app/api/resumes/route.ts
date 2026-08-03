@@ -9,6 +9,7 @@ const createSchema = z.object({
   label: z.string(),
   jdSource: z.string(),
   jdIsUrl: z.boolean().default(false),
+  company: z.string().default(""),
   targetRoleTag: z.string().default(""),
   typstSource: z.string(),
   selectedHighlightIds: z.array(z.string()).default([]),

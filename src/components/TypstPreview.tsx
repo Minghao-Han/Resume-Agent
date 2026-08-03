@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { compileTypstSvg } from "@/lib/typstClient";
 
-export type TypstCompileInfo = { pageCount: number; error: string | null };
+export type TypstCompileInfo = { pageCount: number; error: string | null; width?: number; height?: number };
 
 type Props = {
   source: string;
@@ -41,7 +41,7 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }
         setSvg(compiled);
         setSize({ width, height });
         setError(null);
-        onCompiledRef.current?.({ pageCount, error: null });
+        onCompiledRef.current?.({ pageCount, error: null, width, height });
       } catch (err) {
         if (generationRef.current !== generation) return;
         const message = err instanceof Error ? err.message : String(err);

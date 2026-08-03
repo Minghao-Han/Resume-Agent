@@ -82,7 +82,8 @@ model GeneratedResume {
   label                 String
   jdSource              String // the raw URL or JD text the user supplied
   jdIsUrl               Boolean  @default(false)
-  targetRoleTag         String   @default("")
+  company               String   @default("") // target company, extracted from the JD by the generation agent
+  targetRoleTag         String   @default("") // target role/title, extracted from the JD by the generation agent
   typstSource           String
   selectedHighlightIds  String   @default("[]") // JSON string[]
   chatHistory           String   @default("[]") // JSON {role, content}[]
