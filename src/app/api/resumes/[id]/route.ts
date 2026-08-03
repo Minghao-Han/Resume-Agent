@@ -4,10 +4,10 @@ import { prisma } from "@/lib/db";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-function serialize(r: { selectedExperienceIds: string; chatHistory: string; [key: string]: unknown }) {
+function serialize(r: { selectedHighlightIds: string; chatHistory: string; [key: string]: unknown }) {
   return {
     ...r,
-    selectedExperienceIds: JSON.parse(r.selectedExperienceIds),
+    selectedHighlightIds: JSON.parse(r.selectedHighlightIds),
     chatHistory: JSON.parse(r.chatHistory),
   };
 }

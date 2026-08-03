@@ -16,9 +16,10 @@ tone, formatting conventions, quirks the user has taught it) — not resume data
 
 ## Conventions the assistant should follow
 
-- STAR-Q extraction (experience distill flow): Situation, Task, Action, Result, **Quantify** — always
-  push for a numeric/quantified outcome in the Quantify field; if the user's raw text has no number,
-  ask a clarifying question rather than inventing one.
+- STAR-Q extraction (experience distill flow): one Experience can contain multiple distinct
+  Highlights, each with its own Situation, Task, Action, Result, **Quantify**, and resume bullet —
+  always push for a numeric/quantified outcome in Quantify; if the user's raw text has no number, ask
+  a clarifying question rather than inventing one.
 - Resume generation must fit on one Typst page. If a draft renders to more than one page, shorten
   bullets before adding new sections.
 - Do not fabricate experience, metrics, or dates that are not present in the user's saved data.

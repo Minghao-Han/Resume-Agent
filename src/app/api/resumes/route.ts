@@ -10,14 +10,14 @@ const createSchema = z.object({
   jdIsUrl: z.boolean().default(false),
   targetRoleTag: z.string().default(""),
   typstSource: z.string(),
-  selectedExperienceIds: z.array(z.string()).default([]),
+  selectedHighlightIds: z.array(z.string()).default([]),
   chatHistory: z.array(chatMessageSchema).default([]),
 });
 
-function serialize(r: { selectedExperienceIds: string; chatHistory: string; [key: string]: unknown }) {
+function serialize(r: { selectedHighlightIds: string; chatHistory: string; [key: string]: unknown }) {
   return {
     ...r,
-    selectedExperienceIds: JSON.parse(r.selectedExperienceIds),
+    selectedHighlightIds: JSON.parse(r.selectedHighlightIds),
     chatHistory: JSON.parse(r.chatHistory),
   };
 }
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const created = await prisma.generatedResume.create({
     data: {
       ...body,
-      selectedExperienceIds: JSON.stringify(body.selectedExperienceIds),
+      selectedHighlightIds: JSON.stringify(body.selectedHighlightIds),
       chatHistory: JSON.stringify(body.chatHistory),
     },
   });

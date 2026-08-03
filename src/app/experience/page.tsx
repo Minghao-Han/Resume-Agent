@@ -11,28 +11,37 @@ type ExperienceSummary = {
   title: string;
   org: string;
   type: ExperienceType;
-  tags: string[];
   updatedAt: string;
+};
+
+type Highlight = {
+  id?: string;
+  title: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  quantify: string;
+  resumeBullet: string;
+  tags: string[];
 };
 
 type Experience = ExperienceSummary & {
   rawInput: string;
-  situation: string;
-  task: string;
-  action: string;
-  result: string;
-  quantify: string;
   chatHistory: ChatMessage[];
   sessionId?: string | null;
+  highlights: Highlight[];
 };
 
-type StarQ = {
-  situation: string;
-  task: string;
-  action: string;
-  result: string;
-  quantify: string;
-  tags: string[];
+const EMPTY_HIGHLIGHT: Highlight = {
+  title: "",
+  situation: "",
+  task: "",
+  action: "",
+  result: "",
+  quantify: "",
+  resumeBullet: "",
+  tags: [],
 };
 
 const EMPTY: Experience = {
@@ -41,14 +50,9 @@ const EMPTY: Experience = {
   org: "",
   type: "intern",
   rawInput: "",
-  situation: "",
-  task: "",
-  action: "",
-  result: "",
-  quantify: "",
-  tags: [],
   chatHistory: [],
   sessionId: null,
+  highlights: [],
   updatedAt: "",
 };
 
@@ -57,7 +61,6 @@ export default function ExperiencePage() {
   const [current, setCurrent] = useState<Experience>(EMPTY);
   const [sending, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [tagInput, setTagInput] = useState("");
 
   async function refreshList() {
     const res = await fetch("/api/experiences");
@@ -77,10 +80,6 @@ export default function ExperiencePage() {
     setCurrent(await res.json());
   }
 
-  function applyStarQ(starQ: StarQ) {
-    setCurrent((c) => ({ ...c, ...starQ }));
-  }
-
   async function extract() {
     if (!current.rawInput.trim()) return;
     setSending(true);
@@ -91,17 +90,17 @@ export default function ExperiencePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, sessionId: current.sessionId ?? undefined }),
       });
-      const data: { sessionId?: string; reply: string; starQ: StarQ | null } = await res.json();
+      const data: { sessionId?: string; reply: string; highlights: Highlight[] | null } = await res.json();
       setCurrent((c) => ({
         ...c,
         sessionId: data.sessionId ?? c.sessionId,
+        highlights: data.highlights ?? c.highlights,
         chatHistory: [
           ...c.chatHistory,
           { role: "user", content: message },
           { role: "assistant", content: data.reply },
         ],
       }));
-      if (data.starQ) applyStarQ(data.starQ);
     } finally {
       setSending(false);
     }
@@ -116,27 +115,31 @@ export default function ExperiencePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, sessionId: current.sessionId ?? undefined }),
       });
-      const data: { sessionId?: string; reply: string; starQ: StarQ | null } = await res.json();
+      const data: { sessionId?: string; reply: string; highlights: Highlight[] | null } = await res.json();
       setCurrent((c) => ({
         ...c,
         sessionId: data.sessionId ?? c.sessionId,
+        highlights: data.highlights ?? c.highlights,
         chatHistory: [...c.chatHistory, { role: "assistant", content: data.reply }],
       }));
-      if (data.starQ) applyStarQ(data.starQ);
     } finally {
       setSending(false);
     }
   }
 
-  function addTag() {
-    const t = tagInput.trim();
-    if (!t) return;
-    setCurrent((c) => (c.tags.includes(t) ? c : { ...c, tags: [...c.tags, t] }));
-    setTagInput("");
+  function updateHighlight(index: number, patch: Partial<Highlight>) {
+    setCurrent((c) => ({
+      ...c,
+      highlights: c.highlights.map((h, i) => (i === index ? { ...h, ...patch } : h)),
+    }));
   }
 
-  function removeTag(tag: string) {
-    setCurrent((c) => ({ ...c, tags: c.tags.filter((t) => t !== tag) }));
+  function addHighlight() {
+    setCurrent((c) => ({ ...c, highlights: [...c.highlights, { ...EMPTY_HIGHLIGHT }] }));
+  }
+
+  function removeHighlight(index: number) {
+    setCurrent((c) => ({ ...c, highlights: c.highlights.filter((_, i) => i !== index) }));
   }
 
   async function save() {
@@ -147,14 +150,9 @@ export default function ExperiencePage() {
         org: current.org,
         type: current.type,
         rawInput: current.rawInput,
-        situation: current.situation,
-        task: current.task,
-        action: current.action,
-        result: current.result,
-        quantify: current.quantify,
-        tags: current.tags,
         chatHistory: current.chatHistory,
         sessionId: current.sessionId ?? undefined,
+        highlights: current.highlights,
       };
       const res = current.id
         ? await fetch(`/api/experiences/${current.id}`, {
@@ -226,51 +224,35 @@ export default function ExperiencePage() {
           <textarea
             className="textarea w-full"
             rows={6}
-            placeholder="粘贴完整经历描述…"
+            placeholder="粘贴完整经历描述…（一段经历里可以包含多个独立的 highlight）"
             value={current.rawInput}
             onChange={(e) => setCurrent((c) => ({ ...c, rawInput: e.target.value }))}
           />
           <button type="button" className="btn-primary mt-2" onClick={extract} disabled={sending}>
-            {sending ? "提取中…" : "提取 STAR-Q"}
+            {sending ? "提取中…" : "提取 Highlights"}
           </button>
 
-          <div className="mt-4 flex flex-col gap-2">
-            <StarQField label="Situation" value={current.situation} onChange={(v) => setCurrent((c) => ({ ...c, situation: v }))} />
-            <StarQField label="Task" value={current.task} onChange={(v) => setCurrent((c) => ({ ...c, task: v }))} />
-            <StarQField label="Action" value={current.action} onChange={(v) => setCurrent((c) => ({ ...c, action: v }))} />
-            <StarQField label="Result" value={current.result} onChange={(v) => setCurrent((c) => ({ ...c, result: v }))} />
-            <StarQField label="Quantify" value={current.quantify} onChange={(v) => setCurrent((c) => ({ ...c, quantify: v }))} />
+          <div className="mt-4 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+              Highlights（{current.highlights.length}）
+            </h2>
+            <button type="button" className="btn-secondary" onClick={addHighlight}>
+              + 手动添加一条
+            </button>
           </div>
 
-          <div className="mt-4">
-            <div className="mb-1 text-sm text-neutral-600 dark:text-neutral-400">适用角色标签</div>
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {current.tags.map((tag) => (
-                <span key={tag} className="tag">
-                  {tag}
-                  <button type="button" className="ml-1.5 text-neutral-400 hover:text-red-500" onClick={() => removeTag(tag)}>
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                className="input flex-1"
-                placeholder="添加标签…"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
+          <div className="mt-2 flex flex-col gap-3">
+            {current.highlights.map((h, i) => (
+              <HighlightCard
+                key={h.id ?? i}
+                highlight={h}
+                onChange={(patch) => updateHighlight(i, patch)}
+                onRemove={() => removeHighlight(i)}
               />
-              <button type="button" className="btn-secondary" onClick={addTag}>
-                添加
-              </button>
-            </div>
+            ))}
+            {current.highlights.length === 0 && (
+              <p className="text-sm text-neutral-500">还没有 highlight，先粘贴原文提取，或手动添加一条。</p>
+            )}
           </div>
 
           <button type="button" className="btn-primary mt-6" onClick={save} disabled={saving}>
@@ -285,6 +267,103 @@ export default function ExperiencePage() {
           sending={sending}
           placeholder="继续和 Claude 对话，调整提取结果…"
         />
+      </div>
+    </div>
+  );
+}
+
+function HighlightCard({
+  highlight,
+  onChange,
+  onRemove,
+}: {
+  highlight: Highlight;
+  onChange: (patch: Partial<Highlight>) => void;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+
+  function addTag() {
+    const t = tagInput.trim();
+    if (!t) return;
+    if (!highlight.tags.includes(t)) onChange({ tags: [...highlight.tags, t] });
+    setTagInput("");
+  }
+
+  function removeTag(tag: string) {
+    onChange({ tags: highlight.tags.filter((t) => t !== tag) });
+  }
+
+  return (
+    <div className="card">
+      <div className="mb-2 flex items-start gap-2">
+        <input
+          className="input flex-1 font-medium"
+          placeholder="Highlight 标题"
+          value={highlight.title}
+          onChange={(e) => onChange({ title: e.target.value })}
+        />
+        <button
+          type="button"
+          className="btn-secondary shrink-0"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "收起" : "展开 STAR-Q"}
+        </button>
+        <button type="button" className="shrink-0 text-xs text-red-600 hover:underline" onClick={onRemove}>
+          删除
+        </button>
+      </div>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-neutral-600 dark:text-neutral-400">Resume Bullet</span>
+        <textarea
+          className="textarea"
+          rows={2}
+          value={highlight.resumeBullet}
+          onChange={(e) => onChange({ resumeBullet: e.target.value })}
+        />
+      </label>
+
+      {expanded && (
+        <div className="mt-2 flex flex-col gap-2">
+          <StarQField label="Situation" value={highlight.situation} onChange={(v) => onChange({ situation: v })} />
+          <StarQField label="Task" value={highlight.task} onChange={(v) => onChange({ task: v })} />
+          <StarQField label="Action" value={highlight.action} onChange={(v) => onChange({ action: v })} />
+          <StarQField label="Result" value={highlight.result} onChange={(v) => onChange({ result: v })} />
+          <StarQField label="Quantify" value={highlight.quantify} onChange={(v) => onChange({ quantify: v })} />
+        </div>
+      )}
+
+      <div className="mt-2">
+        <div className="mb-1 flex flex-wrap gap-1.5">
+          {highlight.tags.map((tag) => (
+            <span key={tag} className="tag">
+              {tag}
+              <button type="button" className="ml-1.5 text-neutral-400 hover:text-red-500" onClick={() => removeTag(tag)}>
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input
+            className="input flex-1"
+            placeholder="添加标签…"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTag();
+              }
+            }}
+          />
+          <button type="button" className="btn-secondary" onClick={addTag}>
+            添加
+          </button>
+        </div>
       </div>
     </div>
   );

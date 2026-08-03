@@ -48,6 +48,7 @@ export async function runAssistantTurn(params: {
     tools: FILE_TOOLS,
     allowedTools: FILE_TOOLS,
     settingSources: ["project", "local"],
+    settings: { autoMemoryEnabled: false },
     canUseTool,
     resume: sessionId,
     permissionMode: "default",

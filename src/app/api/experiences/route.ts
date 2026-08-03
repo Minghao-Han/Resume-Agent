@@ -1,49 +1,40 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/db";
-
-const chatMessageSchema = z.object({ role: z.enum(["user", "assistant"]), content: z.string() });
-
-const experienceSchema = z.object({
-  title: z.string(),
-  org: z.string(),
-  type: z.enum(["intern", "project"]),
-  rawInput: z.string(),
-  situation: z.string().default(""),
-  task: z.string().default(""),
-  action: z.string().default(""),
-  result: z.string().default(""),
-  quantify: z.string().default(""),
-  tags: z.array(z.string()).default([]),
-  chatHistory: z.array(chatMessageSchema).default([]),
-  sessionId: z.string().optional(),
-});
-
-function serialize(exp: {
-  tags: string;
-  chatHistory: string;
-  [key: string]: unknown;
-}) {
-  return {
-    ...exp,
-    tags: JSON.parse(exp.tags),
-    chatHistory: JSON.parse(exp.chatHistory),
-  };
-}
+import { experienceInputSchema, serializeExperience } from "@/lib/experienceApi";
 
 export async function GET() {
-  const experiences = await prisma.experience.findMany({ orderBy: { updatedAt: "desc" } });
-  return NextResponse.json(experiences.map(serialize));
+  const experiences = await prisma.experience.findMany({
+    orderBy: { updatedAt: "desc" },
+    include: { highlights: { orderBy: { sortOrder: "asc" } } },
+  });
+  return NextResponse.json(experiences.map(serializeExperience));
 }
 
 export async function POST(request: Request) {
-  const body = experienceSchema.parse(await request.json());
+  const body = experienceInputSchema.parse(await request.json());
   const created = await prisma.experience.create({
     data: {
-      ...body,
-      tags: JSON.stringify(body.tags),
+      title: body.title,
+      org: body.org,
+      type: body.type,
+      rawInput: body.rawInput,
+      sessionId: body.sessionId,
       chatHistory: JSON.stringify(body.chatHistory),
+      highlights: {
+        create: body.highlights.map((h, index) => ({
+          title: h.title,
+          situation: h.situation,
+          task: h.task,
+          action: h.action,
+          result: h.result,
+          quantify: h.quantify,
+          resumeBullet: h.resumeBullet,
+          tags: JSON.stringify(h.tags),
+          sortOrder: index,
+        })),
+      },
     },
+    include: { highlights: { orderBy: { sortOrder: "asc" } } },
   });
-  return NextResponse.json(serialize(created));
+  return NextResponse.json(serializeExperience(created));
 }

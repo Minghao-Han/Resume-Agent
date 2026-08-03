@@ -33,22 +33,35 @@ model Education {
 }
 
 // type: "intern" | "project"
+// One Experience (e.g. "Perflection.ai Summer Internship") can produce many
+// distinct, independently STAR-Q'd Highlights (e.g. one per project/incident
+// worth its own resume bullet) — see Highlight below.
 model Experience {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   title       String
   org         String
   type        String
   rawInput    String
-  situation   String   @default("")
-  task        String   @default("")
-  action      String   @default("")
-  result      String   @default("")
-  quantify    String   @default("")
-  tags        String   @default("[]") // JSON string[]
-  chatHistory String   @default("[]") // JSON {role, content}[]
+  chatHistory String      @default("[]") // JSON {role, content}[]
   sessionId   String? // Claude Agent SDK session id, so chat can resume() after reload
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  highlights  Highlight[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Highlight {
+  id           String     @id @default(uuid())
+  title        String     @default("") // short name, e.g. "Fixed an Unauthorized Access Vulnerability"
+  situation    String     @default("")
+  task         String     @default("")
+  action       String     @default("")
+  result       String     @default("")
+  quantify     String     @default("")
+  resumeBullet String     @default("") // polished, resume-ready synthesis of the STAR-Q above
+  tags         String     @default("[]") // JSON string[]
+  sortOrder    Int        @default(0)
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  experienceId String
 }
 
 model ResumeTemplate {
@@ -67,7 +80,7 @@ model GeneratedResume {
   jdIsUrl               Boolean  @default(false)
   targetRoleTag         String   @default("")
   typstSource           String
-  selectedExperienceIds String   @default("[]") // JSON string[]
+  selectedHighlightIds  String   @default("[]") // JSON string[]
   chatHistory           String   @default("[]") // JSON {role, content}[]
   sessionId             String? // Claude Agent SDK session id, so chat can resume() after reload
   pdfPath               String?

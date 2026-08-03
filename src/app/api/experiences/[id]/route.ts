@@ -1,45 +1,59 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { experienceInputSchema, serializeExperience } from "@/lib/experienceApi";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-const chatMessageSchema = z.object({ role: z.enum(["user", "assistant"]), content: z.string() });
-
-const experienceSchema = z.object({
-  title: z.string(),
-  org: z.string(),
-  type: z.enum(["intern", "project"]),
-  rawInput: z.string(),
-  situation: z.string().default(""),
-  task: z.string().default(""),
-  action: z.string().default(""),
-  result: z.string().default(""),
-  quantify: z.string().default(""),
-  tags: z.array(z.string()).default([]),
-  chatHistory: z.array(chatMessageSchema).default([]),
-  sessionId: z.string().optional(),
-});
-
-function serialize(exp: { tags: string; chatHistory: string; [key: string]: unknown }) {
-  return { ...exp, tags: JSON.parse(exp.tags), chatHistory: JSON.parse(exp.chatHistory) };
-}
-
 export async function GET(_request: Request, { params }: RouteParams) {
   const { id } = await params;
-  const exp = await prisma.experience.findUnique({ where: { id } });
+  const exp = await prisma.experience.findUnique({
+    where: { id },
+    include: { highlights: { orderBy: { sortOrder: "asc" } } },
+  });
   if (!exp) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json(serialize(exp));
+  return NextResponse.json(serializeExperience(exp));
 }
 
 export async function PUT(request: Request, { params }: RouteParams) {
   const { id } = await params;
-  const body = experienceSchema.parse(await request.json());
-  const updated = await prisma.experience.update({
-    where: { id },
-    data: { ...body, tags: JSON.stringify(body.tags), chatHistory: JSON.stringify(body.chatHistory) },
+  const body = experienceInputSchema.parse(await request.json());
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.experience.update({
+      where: { id },
+      data: {
+        title: body.title,
+        org: body.org,
+        type: body.type,
+        rawInput: body.rawInput,
+        sessionId: body.sessionId,
+        chatHistory: JSON.stringify(body.chatHistory),
+      },
+    });
+    await tx.highlight.deleteMany({ where: { experienceId: id } });
+    if (body.highlights.length > 0) {
+      await tx.highlight.createMany({
+        data: body.highlights.map((h, index) => ({
+          title: h.title,
+          situation: h.situation,
+          task: h.task,
+          action: h.action,
+          result: h.result,
+          quantify: h.quantify,
+          resumeBullet: h.resumeBullet,
+          tags: JSON.stringify(h.tags),
+          sortOrder: index,
+          experienceId: id,
+        })),
+      });
+    }
+    return tx.experience.findUniqueOrThrow({
+      where: { id },
+      include: { highlights: { orderBy: { sortOrder: "asc" } } },
+    });
   });
-  return NextResponse.json(serialize(updated));
+
+  return NextResponse.json(serializeExperience(updated));
 }
 
 export async function DELETE(_request: Request, { params }: RouteParams) {

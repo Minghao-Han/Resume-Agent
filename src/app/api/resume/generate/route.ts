@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
   const [personalInfo, experiences, template] = await Promise.all([
     prisma.personalInfo.findFirst({ include: { educations: { orderBy: { sortOrder: "asc" } } } }),
-    prisma.experience.findMany(),
+    prisma.experience.findMany({ include: { highlights: { orderBy: { sortOrder: "asc" } } } }),
     prisma.resumeTemplate.findUnique({ where: { id: body.templateId } }),
   ]);
 
@@ -60,12 +60,17 @@ export async function POST(request: Request) {
       title: e.title,
       org: e.org,
       type: e.type,
-      situation: e.situation,
-      task: e.task,
-      action: e.action,
-      result: e.result,
-      quantify: e.quantify,
-      tags: JSON.parse(e.tags),
+      highlights: e.highlights.map((h) => ({
+        id: h.id,
+        title: h.title,
+        situation: h.situation,
+        task: h.task,
+        action: h.action,
+        result: h.result,
+        quantify: h.quantify,
+        resumeBullet: h.resumeBullet,
+        tags: JSON.parse(h.tags),
+      })),
     })),
     templateSource: template.typstSource,
   });
