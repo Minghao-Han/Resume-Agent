@@ -5,7 +5,7 @@ import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
 import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { compileTypstPdf, downloadPdfBytes } from "@/lib/typstClient";
 import { toast } from "@/lib/toast";
-import { parseJsonResponse, ApiError } from "@/lib/apiClient";
+import { ApiError, apiGet, apiPost, apiPutBinary } from "@/lib/apiClient";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean };
 
@@ -26,30 +26,23 @@ export default function GeneratePage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch("/api/templates")
-      .then((res) => res.json())
-      .then((list: TemplateSummary[]) => {
-        setTemplates(list);
-        const def = list.find((t) => t.isDefault) ?? list[0];
-        if (def) setTemplateId(def.id);
-      });
+    apiGet<TemplateSummary[]>("/api/templates").then((list) => {
+      setTemplates(list);
+      const def = list.find((t) => t.isDefault) ?? list[0];
+      if (def) setTemplateId(def.id);
+    });
   }, []);
 
   async function generate() {
     if (!jdText.trim() || !templateId) return;
     setGenerating(true);
     try {
-      const res = await fetch("/api/resume/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jdText, jdIsUrl: looksLikeUrl(jdText), templateId }),
-      });
-      const data = await parseJsonResponse<{
+      const data = await apiPost<{
         sessionId?: string;
         reply: string;
         typstSource: string | null;
         isError?: boolean;
-      }>(res);
+      }>("/api/resume/generate", { jdText, jdIsUrl: looksLikeUrl(jdText), templateId });
       if (data.isError) toast(data.reply);
       setSessionId(data.sessionId);
       setMessages([
@@ -69,17 +62,12 @@ export default function GeneratePage() {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setGenerating(true);
     try {
-      const res = await fetch("/api/resume/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, message: text }),
-      });
-      const data = await parseJsonResponse<{
+      const data = await apiPost<{
         sessionId?: string;
         reply: string;
         typstSource: string | null;
         isError?: boolean;
-      }>(res);
+      }>("/api/resume/generate", { sessionId, message: text });
       if (data.isError) toast(data.reply);
       setSessionId(data.sessionId ?? sessionId);
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
@@ -103,24 +91,15 @@ export default function GeneratePage() {
     if (!typstSource) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/resumes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: label || `简历 ${new Date().toLocaleString()}`,
-          jdSource: jdText,
-          jdIsUrl: looksLikeUrl(jdText),
-          typstSource,
-          chatHistory: messages,
-        }),
+      const created = await apiPost<{ id: string }>("/api/resumes", {
+        label: label || `简历 ${new Date().toLocaleString()}`,
+        jdSource: jdText,
+        jdIsUrl: looksLikeUrl(jdText),
+        typstSource,
+        chatHistory: messages,
       });
-      const created = await parseJsonResponse<{ id: string }>(res);
       const pdfBytes = await compileTypstPdf(typstSource);
-      await fetch(`/api/resumes/${created.id}/pdf`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/pdf" },
-        body: pdfBytes as BodyInit,
-      });
+      await apiPutBinary(`/api/resumes/${created.id}/pdf`, pdfBytes as BodyInit, "application/pdf");
       toast("已保存");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "保存失败，请重试");

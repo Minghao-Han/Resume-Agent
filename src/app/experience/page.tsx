@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChatPanel, type ChatMessage, type MentionItem } from "@/components/ChatPanel";
 import { toast } from "@/lib/toast";
-import { parseJsonResponse, ApiError } from "@/lib/apiClient";
+import { ApiError, apiGet, apiPost, apiPut, apiDelete } from "@/lib/apiClient";
 
 type ExperienceType = "intern" | "project";
 
@@ -64,8 +64,7 @@ export default function ExperiencePage() {
   const [saving, setSaving] = useState(false);
 
   async function refreshList() {
-    const res = await fetch("/api/experiences");
-    setList(await res.json());
+    setList(await apiGet<ExperienceSummary[]>("/api/experiences"));
   }
 
   useEffect(() => {
@@ -77,8 +76,7 @@ export default function ExperiencePage() {
   }
 
   async function loadExperience(id: string) {
-    const res = await fetch(`/api/experiences/${id}`);
-    setCurrent(await res.json());
+    setCurrent(await apiGet<Experience>(`/api/experiences/${id}`));
   }
 
   async function extract() {
@@ -86,17 +84,12 @@ export default function ExperiencePage() {
     setSending(true);
     const message = `Type: ${current.type}\nTitle: ${current.title}\nOrganization: ${current.org}\n\nRaw description:\n${current.rawInput}`;
     try {
-      const res = await fetch("/api/experience/distill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId: current.sessionId ?? undefined }),
-      });
-      const data = await parseJsonResponse<{
+      const data = await apiPost<{
         sessionId?: string;
         reply: string;
         highlights: Highlight[] | null;
         isError?: boolean;
-      }>(res);
+      }>("/api/experience/distill", { message, sessionId: current.sessionId ?? undefined });
       if (data.isError) toast(data.reply);
       setCurrent((c) => ({
         ...c,
@@ -137,17 +130,12 @@ export default function ExperiencePage() {
     try {
       const mentionedIndexes = mentionedIds.map((id) => Number(id)).filter((n) => !Number.isNaN(n));
       const apiMessage = buildHighlightsContextMessage(text, mentionedIndexes);
-      const res = await fetch("/api/experience/distill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: apiMessage, sessionId: current.sessionId ?? undefined }),
-      });
-      const data = await parseJsonResponse<{
+      const data = await apiPost<{
         sessionId?: string;
         reply: string;
         highlights: Highlight[] | null;
         isError?: boolean;
-      }>(res);
+      }>("/api/experience/distill", { message: apiMessage, sessionId: current.sessionId ?? undefined });
       if (data.isError) toast(data.reply);
       setCurrent((c) => ({
         ...c,
@@ -191,21 +179,14 @@ export default function ExperiencePage() {
         sessionId: current.sessionId ?? undefined,
         highlights: current.highlights,
       };
-      const res = current.id
-        ? await fetch(`/api/experiences/${current.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          })
-        : await fetch("/api/experiences", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-      const saved: Experience = await res.json();
+      const saved = current.id
+        ? await apiPut<Experience>(`/api/experiences/${current.id}`, payload)
+        : await apiPost<Experience>("/api/experiences", payload);
       setCurrent(saved);
       await refreshList();
       toast("已保存");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "保存失败，请重试");
     } finally {
       setSaving(false);
     }
@@ -214,7 +195,7 @@ export default function ExperiencePage() {
   async function deleteExperience(id: string) {
     const target = list.find((e) => e.id === id);
     if (!confirm(`删除经历「${target?.title || "未命名"}」？其下所有 highlight 也会被删除。`)) return;
-    await fetch(`/api/experiences/${id}`, { method: "DELETE" });
+    await apiDelete(`/api/experiences/${id}`);
     if (current.id === id) setCurrent(EMPTY);
     await refreshList();
     toast("已删除");

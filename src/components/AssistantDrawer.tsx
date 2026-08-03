@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChatPanel, type ChatMessage } from "./ChatPanel";
-import { parseJsonResponse, ApiError } from "@/lib/apiClient";
+import { ApiError, apiPost } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
 
 const STORAGE_KEY = "resume-agent:assistant-drawer";
@@ -35,12 +35,10 @@ export function AssistantDrawer() {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setSending(true);
     try {
-      const res = await fetch("/api/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, sessionId }),
+      const data = await apiPost<{ sessionId?: string; reply: string; isError?: boolean }>("/api/assistant", {
+        message: text,
+        sessionId,
       });
-      const data = await parseJsonResponse<{ sessionId?: string; reply: string; isError?: boolean }>(res);
       if (data.isError) toast(data.reply);
       setSessionId(data.sessionId);
       setMessages((m) => [...m, { role: "assistant", content: data.reply || "(no reply)" }]);

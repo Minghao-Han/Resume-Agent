@@ -20,3 +20,41 @@ export async function parseJsonResponse<T>(res: Response): Promise<T> {
   }
   return data as T;
 }
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, init);
+  return parseJsonResponse<T>(res);
+}
+
+export function apiGet<T>(path: string): Promise<T> {
+  return request<T>(path);
+}
+
+export function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+export function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+export function apiDelete<T = { ok: true }>(path: string): Promise<T> {
+  return request<T>(path, { method: "DELETE" });
+}
+
+/** For non-JSON payloads, e.g. uploading a compiled PDF's raw bytes. */
+export function apiPutBinary<T>(path: string, body: BodyInit, contentType: string): Promise<T> {
+  return request<T>(path, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body,
+  });
+}

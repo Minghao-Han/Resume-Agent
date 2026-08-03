@@ -7,6 +7,7 @@ import { DEFAULT_TYPST_TEMPLATE } from "@/lib/defaultTemplate";
 import { useIsDarkMode } from "@/lib/useIsDarkMode";
 import { toast } from "@/lib/toast";
 import { typstLanguage } from "@/lib/typstLanguage";
+import { ApiError, apiGet, apiPost, apiPut, apiDelete } from "@/lib/apiClient";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean; updatedAt: string };
 type Template = TemplateSummary & { typstSource: string };
@@ -21,8 +22,7 @@ export default function TemplatesPage() {
   const isDark = useIsDarkMode();
 
   async function refreshList() {
-    const res = await fetch("/api/templates");
-    const data: TemplateSummary[] = await res.json();
+    const data = await apiGet<TemplateSummary[]>("/api/templates");
     setTemplates(data);
     return data;
   }
@@ -35,8 +35,7 @@ export default function TemplatesPage() {
   }, []);
 
   async function loadTemplate(id: string) {
-    const res = await fetch(`/api/templates/${id}`);
-    const data: Template = await res.json();
+    const data = await apiGet<Template>(`/api/templates/${id}`);
     setSelectedId(data.id);
     setName(data.name);
     setSource(data.typstSource);
@@ -52,22 +51,15 @@ export default function TemplatesPage() {
     setSaving(true);
     try {
       if (selectedId) {
-        await fetch(`/api/templates/${selectedId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, typstSource: source }),
-        });
+        await apiPut(`/api/templates/${selectedId}`, { name, typstSource: source });
       } else {
-        const res = await fetch("/api/templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, typstSource: source }),
-        });
-        const created: Template = await res.json();
+        const created = await apiPost<Template>("/api/templates", { name, typstSource: source });
         setSelectedId(created.id);
       }
       await refreshList();
       toast("已保存");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "保存失败，请重试");
     } finally {
       setSaving(false);
     }
@@ -76,7 +68,7 @@ export default function TemplatesPage() {
   async function remove() {
     if (!selectedId) return;
     if (!confirm(`删除模板「${name}」？`)) return;
-    await fetch(`/api/templates/${selectedId}`, { method: "DELETE" });
+    await apiDelete(`/api/templates/${selectedId}`);
     startNew();
     await refreshList();
     toast("已删除");

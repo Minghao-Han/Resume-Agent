@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TypstPreview } from "@/components/TypstPreview";
+import { apiGet, apiDelete } from "@/lib/apiClient";
 
 type GeneratedResume = {
   id: string;
@@ -19,8 +20,7 @@ export default function ResumesPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function refresh() {
-    const res = await fetch("/api/resumes");
-    setResumes(await res.json());
+    setResumes(await apiGet<GeneratedResume[]>("/api/resumes"));
   }
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function ResumesPage() {
 
   async function remove(id: string) {
     if (!confirm("删除这份简历？")) return;
-    await fetch(`/api/resumes/${id}`, { method: "DELETE" });
+    await apiDelete(`/api/resumes/${id}`);
     await refresh();
   }
 

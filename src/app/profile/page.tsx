@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "@/lib/toast";
+import { ApiError, apiGet, apiPut } from "@/lib/apiClient";
 
 type Education = {
   id?: string;
@@ -42,9 +43,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch("/api/profile")
-      .then((res) => res.json())
-      .then((data: Profile) => setProfile(data))
+    apiGet<Profile>("/api/profile")
+      .then((data) => setProfile(data))
       .finally(() => setLoading(false));
   }, []);
 
@@ -70,14 +70,11 @@ export default function ProfilePage() {
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
-      });
-      const data: Profile = await res.json();
+      const data = await apiPut<Profile>("/api/profile", profile);
       setProfile(data);
       toast("已保存");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "保存失败，请重试");
     } finally {
       setSaving(false);
     }
