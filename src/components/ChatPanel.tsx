@@ -127,7 +127,7 @@ export function ChatPanel({ messages, onSend, sending, placeholder, className, m
             {m.content}
           </div>
         ))}
-        {sending && <div className="px-2 text-xs text-neutral-500">思考中…</div>}
+        {sending && <div className="px-2 text-xs text-neutral-500">思考中…，请勿离开页面</div>}
       </div>
       <div className="relative flex gap-2 border-t border-neutral-200 p-2 dark:border-neutral-800">
         {activeMention && matches.length > 0 && (

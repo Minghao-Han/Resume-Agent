@@ -1,5 +1,6 @@
 import { runAgentTurn, extractFencedBlock } from "./core";
 import { sanitizeTemplateSource } from "./templateSanitize";
+import { sanitizeGeneratedTypst } from "./typstOutput";
 
 export type HighlightForPrompt = {
   id: string;
@@ -53,6 +54,8 @@ CRITICAL — data isolation: the Personal info and Experience library JSON given
 
 CRITICAL — Typst constraints: the compiler here has no package registry access. Never write \`#import "@preview/..."\` or reference any external Typst package — the compile will fail. If the given template originally depended on one (its import line will already be stripped by the time you see it), rebuild the same visual structure using only plain Typst markup/functions instead of calling whatever functions that package would have provided (e.g. don't call \`resume.with(...)\` or similar if \`resume\` was never actually defined in what you were given).
 
+CRITICAL — Typst escaping: an unescaped "@" followed by a letter/digit (e.g. "@Version", "@Override", an unescaped email/handle) is parsed by Typst as a citation/label reference and will fail to compile with "label <...> does not exist" — write it as "\\@" instead. Likewise an unescaped "$" followed by a digit (e.g. a dollar amount like "$800") starts Typst math mode and will break compilation or rendering — write it as "\\$" instead. Both apply anywhere in resume prose/bullets, including inside annotation names, handles, emails, or monetary figures.
+
 Output format (every single reply, including follow-up refinements): first briefly explain what you changed and why in 2-4 sentences, then output the COMPLETE current resume Typst source (not a diff) in a fenced code block tagged \`\`\`typst. Always include the full source so the caller can always re-render from your latest reply alone.
 
 If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest experience) rather than shrinking font/margins below readable sizes.`;
@@ -77,6 +80,11 @@ function buildInitialPrompt(params: {
   ].join("\n");
 }
 
+function extractCleanTypst(replyText: string): string | null {
+  const raw = extractFencedBlock(replyText, "typst");
+  return raw === null ? null : sanitizeGeneratedTypst(raw);
+}
+
 export async function startResumeGeneration(params: {
   jdText: string;
   jdIsUrl: boolean;
@@ -98,7 +106,7 @@ export async function startResumeGeneration(params: {
   return {
     sessionId,
     reply: replyText,
-    typstSource: isError ? null : extractFencedBlock(replyText, "typst"),
+    typstSource: isError ? null : extractCleanTypst(replyText),
     isError,
   };
 }
@@ -123,6 +131,6 @@ export async function continueResumeGeneration(params: {
     sessionId: newSessionId,
     reply: replyText,
     isError,
-    typstSource: isError ? null : extractFencedBlock(replyText, "typst"),
+    typstSource: isError ? null : extractCleanTypst(replyText),
   };
 }
