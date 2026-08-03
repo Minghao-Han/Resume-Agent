@@ -103,10 +103,8 @@ export function ChatPanel({ messages, onSend, sending, placeholder, className, m
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    // Enter always just inserts a newline — sending only happens via the
+    // button, so a message can be drafted across multiple lines freely.
   }
 
   return (
