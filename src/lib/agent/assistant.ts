@@ -31,10 +31,10 @@ export const canUseTool: CanUseTool = async (toolName, input) => {
 export async function runAssistantTurn(params: {
   message: string;
   sessionId?: string;
-}): Promise<{ sessionId: string | undefined; reply: string }> {
+}): Promise<{ sessionId: string | undefined; reply: string; isError: boolean }> {
   const { message, sessionId } = params;
 
-  const { sessionId: newSessionId, replyText } = await runAgentTurn(message, {
+  const { sessionId: newSessionId, replyText, isError } = await runAgentTurn(message, {
     cwd: PROJECT_ROOT,
     systemPrompt: {
       type: "preset",
@@ -54,5 +54,5 @@ export async function runAssistantTurn(params: {
     permissionMode: "default",
   });
 
-  return { sessionId: newSessionId, reply: replyText };
+  return { sessionId: newSessionId, reply: replyText, isError };
 }

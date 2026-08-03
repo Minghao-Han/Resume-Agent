@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { startResumeGeneration, continueResumeGeneration } from "@/lib/agent/resumeGen";
+import { errorResponse } from "@/lib/apiError";
 
 const bodySchema = z.object({
   sessionId: z.string().optional(),
@@ -12,6 +13,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  try {
+    return await handlePost(request);
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
+
+async function handlePost(request: Request) {
   const body = bodySchema.parse(await request.json());
 
   if (body.sessionId) {

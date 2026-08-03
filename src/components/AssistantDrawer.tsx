@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { ChatPanel, type ChatMessage } from "./ChatPanel";
+import { parseJsonResponse, ApiError } from "@/lib/apiClient";
+import { toast } from "@/lib/toast";
 
 const STORAGE_KEY = "resume-agent:assistant-drawer";
 
@@ -38,11 +40,14 @@ export function AssistantDrawer() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, sessionId }),
       });
-      const data: { sessionId?: string; reply: string } = await res.json();
+      const data = await parseJsonResponse<{ sessionId?: string; reply: string; isError?: boolean }>(res);
+      if (data.isError) toast(data.reply);
       setSessionId(data.sessionId);
       setMessages((m) => [...m, { role: "assistant", content: data.reply || "(no reply)" }]);
-    } catch {
-      setMessages((m) => [...m, { role: "assistant", content: "出错了，请重试。" }]);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "出错了，请重试。";
+      toast(message);
+      setMessages((m) => [...m, { role: "assistant", content: `⚠️ ${message}` }]);
     } finally {
       setSending(false);
     }

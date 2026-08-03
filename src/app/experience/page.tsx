@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChatPanel, type ChatMessage, type MentionItem } from "@/components/ChatPanel";
 import { toast } from "@/lib/toast";
+import { parseJsonResponse, ApiError } from "@/lib/apiClient";
 
 type ExperienceType = "intern" | "project";
 
@@ -90,7 +91,13 @@ export default function ExperiencePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, sessionId: current.sessionId ?? undefined }),
       });
-      const data: { sessionId?: string; reply: string; highlights: Highlight[] | null } = await res.json();
+      const data = await parseJsonResponse<{
+        sessionId?: string;
+        reply: string;
+        highlights: Highlight[] | null;
+        isError?: boolean;
+      }>(res);
+      if (data.isError) toast(data.reply);
       setCurrent((c) => ({
         ...c,
         sessionId: data.sessionId ?? c.sessionId,
@@ -101,6 +108,8 @@ export default function ExperiencePage() {
           { role: "assistant", content: data.reply },
         ],
       }));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "提取失败，请重试");
     } finally {
       setSending(false);
     }
@@ -133,13 +142,23 @@ export default function ExperiencePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: apiMessage, sessionId: current.sessionId ?? undefined }),
       });
-      const data: { sessionId?: string; reply: string; highlights: Highlight[] | null } = await res.json();
+      const data = await parseJsonResponse<{
+        sessionId?: string;
+        reply: string;
+        highlights: Highlight[] | null;
+        isError?: boolean;
+      }>(res);
+      if (data.isError) toast(data.reply);
       setCurrent((c) => ({
         ...c,
         sessionId: data.sessionId ?? c.sessionId,
         highlights: data.highlights ?? c.highlights,
         chatHistory: [...c.chatHistory, { role: "assistant", content: data.reply }],
       }));
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "出错了，请重试";
+      toast(message);
+      setCurrent((c) => ({ ...c, chatHistory: [...c.chatHistory, { role: "assistant", content: `⚠️ ${message}` }] }));
     } finally {
       setSending(false);
     }

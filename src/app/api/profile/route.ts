@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { errorResponse } from "@/lib/apiError";
 
 const educationSchema = z.object({
   id: z.string().optional(),
@@ -34,41 +35,49 @@ async function getOrCreatePersonalInfo() {
 }
 
 export async function GET() {
-  const info = await getOrCreatePersonalInfo();
-  return NextResponse.json(info);
+  try {
+    const info = await getOrCreatePersonalInfo();
+    return NextResponse.json(info);
+  } catch (err) {
+    return errorResponse(err);
+  }
 }
 
 export async function PUT(request: Request) {
-  const body = profileSchema.parse(await request.json());
-  const current = await getOrCreatePersonalInfo();
+  try {
+    const body = profileSchema.parse(await request.json());
+    const current = await getOrCreatePersonalInfo();
 
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.personalInfo.update({
-      where: { id: current.id },
-      data: { name: body.name, phone: body.phone, email: body.email, location: body.location },
-    });
-    await tx.education.deleteMany({ where: { personalInfoId: current.id } });
-    if (body.educations.length > 0) {
-      await tx.education.createMany({
-        data: body.educations.map((edu, index) => ({
-          school: edu.school,
-          degree: edu.degree,
-          major: edu.major,
-          startDate: edu.startDate,
-          endDate: edu.endDate,
-          region: edu.region,
-          relevantCourses: edu.relevantCourses,
-          gpa: edu.gpa,
-          sortOrder: index,
-          personalInfoId: current.id,
-        })),
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.personalInfo.update({
+        where: { id: current.id },
+        data: { name: body.name, phone: body.phone, email: body.email, location: body.location },
       });
-    }
-    return tx.personalInfo.findUniqueOrThrow({
-      where: { id: current.id },
-      include: { educations: { orderBy: { sortOrder: "asc" } } },
+      await tx.education.deleteMany({ where: { personalInfoId: current.id } });
+      if (body.educations.length > 0) {
+        await tx.education.createMany({
+          data: body.educations.map((edu, index) => ({
+            school: edu.school,
+            degree: edu.degree,
+            major: edu.major,
+            startDate: edu.startDate,
+            endDate: edu.endDate,
+            region: edu.region,
+            relevantCourses: edu.relevantCourses,
+            gpa: edu.gpa,
+            sortOrder: index,
+            personalInfoId: current.id,
+          })),
+        });
+      }
+      return tx.personalInfo.findUniqueOrThrow({
+        where: { id: current.id },
+        include: { educations: { orderBy: { sortOrder: "asc" } } },
+      });
     });
-  });
 
-  return NextResponse.json(updated);
+    return NextResponse.json(updated);
+  } catch (err) {
+    return errorResponse(err);
+  }
 }

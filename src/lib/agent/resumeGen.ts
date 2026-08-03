@@ -83,10 +83,10 @@ export async function startResumeGeneration(params: {
   personalInfo: PersonalInfoForPrompt;
   experiences: ExperienceForPrompt[];
   templateSource: string;
-}): Promise<{ sessionId: string | undefined; reply: string; typstSource: string | null }> {
+}): Promise<{ sessionId: string | undefined; reply: string; typstSource: string | null; isError: boolean }> {
   const prompt = buildInitialPrompt(params);
 
-  const { sessionId, replyText } = await runAgentTurn(prompt, {
+  const { sessionId, replyText, isError } = await runAgentTurn(prompt, {
     systemPrompt: SYSTEM_PROMPT,
     tools: ["WebFetch"],
     allowedTools: ["WebFetch"],
@@ -95,16 +95,21 @@ export async function startResumeGeneration(params: {
     permissionMode: "default",
   });
 
-  return { sessionId, reply: replyText, typstSource: extractFencedBlock(replyText, "typst") };
+  return {
+    sessionId,
+    reply: replyText,
+    typstSource: isError ? null : extractFencedBlock(replyText, "typst"),
+    isError,
+  };
 }
 
 export async function continueResumeGeneration(params: {
   sessionId: string;
   message: string;
-}): Promise<{ sessionId: string | undefined; reply: string; typstSource: string | null }> {
+}): Promise<{ sessionId: string | undefined; reply: string; typstSource: string | null; isError: boolean }> {
   const { sessionId, message } = params;
 
-  const { sessionId: newSessionId, replyText } = await runAgentTurn(message, {
+  const { sessionId: newSessionId, replyText, isError } = await runAgentTurn(message, {
     systemPrompt: SYSTEM_PROMPT,
     tools: ["WebFetch"],
     allowedTools: ["WebFetch"],
@@ -117,6 +122,7 @@ export async function continueResumeGeneration(params: {
   return {
     sessionId: newSessionId,
     reply: replyText,
-    typstSource: extractFencedBlock(replyText, "typst"),
+    isError,
+    typstSource: isError ? null : extractFencedBlock(replyText, "typst"),
   };
 }

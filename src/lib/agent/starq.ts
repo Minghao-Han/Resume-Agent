@@ -99,10 +99,15 @@ function findHighlightsCall(toolCalls: AgentToolCall[]): HighlightResult[] | nul
 export async function runStarQTurn(params: {
   message: string;
   sessionId?: string;
-}): Promise<{ sessionId: string | undefined; reply: string; highlights: HighlightResult[] | null }> {
+}): Promise<{
+  sessionId: string | undefined;
+  reply: string;
+  highlights: HighlightResult[] | null;
+  isError: boolean;
+}> {
   const { message, sessionId } = params;
 
-  const { sessionId: newSessionId, replyText, toolCalls } = await runAgentTurn(message, {
+  const { sessionId: newSessionId, replyText, toolCalls, isError } = await runAgentTurn(message, {
     systemPrompt: SYSTEM_PROMPT,
     tools: [],
     allowedTools: [FULL_TOOL_NAME],
@@ -116,6 +121,7 @@ export async function runStarQTurn(params: {
   return {
     sessionId: newSessionId,
     reply: replyText,
-    highlights: findHighlightsCall(toolCalls),
+    highlights: isError ? null : findHighlightsCall(toolCalls),
+    isError,
   };
 }

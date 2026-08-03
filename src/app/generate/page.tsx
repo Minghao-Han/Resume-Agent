@@ -5,6 +5,7 @@ import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
 import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { compileTypstPdf, downloadPdfBytes } from "@/lib/typstClient";
 import { toast } from "@/lib/toast";
+import { parseJsonResponse, ApiError } from "@/lib/apiClient";
 
 type TemplateSummary = { id: string; name: string; isDefault: boolean };
 
@@ -43,13 +44,21 @@ export default function GeneratePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jdText, jdIsUrl: looksLikeUrl(jdText), templateId }),
       });
-      const data: { sessionId?: string; reply: string; typstSource: string | null } = await res.json();
+      const data = await parseJsonResponse<{
+        sessionId?: string;
+        reply: string;
+        typstSource: string | null;
+        isError?: boolean;
+      }>(res);
+      if (data.isError) toast(data.reply);
       setSessionId(data.sessionId);
       setMessages([
         { role: "user", content: looksLikeUrl(jdText) ? `JD URL: ${jdText}` : `JD:\n${jdText}` },
         { role: "assistant", content: data.reply },
       ]);
       if (data.typstSource) setTypstSource(data.typstSource);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "生成失败，请重试");
     } finally {
       setGenerating(false);
     }
@@ -65,10 +74,20 @@ export default function GeneratePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId, message: text }),
       });
-      const data: { sessionId?: string; reply: string; typstSource: string | null } = await res.json();
+      const data = await parseJsonResponse<{
+        sessionId?: string;
+        reply: string;
+        typstSource: string | null;
+        isError?: boolean;
+      }>(res);
+      if (data.isError) toast(data.reply);
       setSessionId(data.sessionId ?? sessionId);
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
       if (data.typstSource) setTypstSource(data.typstSource);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "出错了，请重试";
+      toast(message);
+      setMessages((m) => [...m, { role: "assistant", content: `⚠️ ${message}` }]);
     } finally {
       setGenerating(false);
     }
@@ -95,7 +114,7 @@ export default function GeneratePage() {
           chatHistory: messages,
         }),
       });
-      const created: { id: string } = await res.json();
+      const created = await parseJsonResponse<{ id: string }>(res);
       const pdfBytes = await compileTypstPdf(typstSource);
       await fetch(`/api/resumes/${created.id}/pdf`, {
         method: "PUT",
@@ -103,6 +122,8 @@ export default function GeneratePage() {
         body: pdfBytes as BodyInit,
       });
       toast("已保存");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "保存失败，请重试");
     } finally {
       setSaving(false);
     }
