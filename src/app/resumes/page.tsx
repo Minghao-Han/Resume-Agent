@@ -16,6 +16,11 @@ type GeneratedResume = {
   createdAt: string;
 };
 
+// Widens the preview modal beyond the resume's true paper aspect ratio, so
+// it doesn't feel like a narrow portrait strip on wide screens — TypstPreview
+// centers the page within the extra space (see `centered` prop below).
+const PREVIEW_WIDTH_BOOST = 1.4;
+
 function titleFor(r: GeneratedResume) {
   if (r.company && r.targetRoleTag) return `${r.company}-${r.targetRoleTag}`;
   if (r.company || r.targetRoleTag) return r.company || r.targetRoleTag;
@@ -98,7 +103,11 @@ export default function ResumesPage() {
         >
           <div
             className="relative h-dvh bg-white dark:bg-neutral-900"
-            style={previewAspect ? { width: `calc(100dvh * ${previewAspect})` } : { width: "60vw" }}
+            style={
+              previewAspect
+                ? { width: `calc(100dvh * ${previewAspect * PREVIEW_WIDTH_BOOST})` }
+                : { width: "60vw" }
+            }
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -111,6 +120,7 @@ export default function ResumesPage() {
             <TypstPreview
               source={previewResume.typstSource}
               className="h-full"
+              centered
               onCompiled={(info) => {
                 if (info.width && info.height) setPreviewAspect(info.width / info.height);
               }}

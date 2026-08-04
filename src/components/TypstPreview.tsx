@@ -11,12 +11,14 @@ type Props = {
   className?: string;
   onCompiled?: (info: TypstCompileInfo) => void;
   debounceMs?: number;
+  /** Center the page within the scroll area instead of pinning it top-left — useful when the container is deliberately wider than the page itself. */
+  centered?: boolean;
 };
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 4;
 
-export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }: Props) {
+export function TypstPreview({ source, className, onCompiled, debounceMs = 300, centered = false }: Props) {
   const [svg, setSvg] = useState("");
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +120,7 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300 }
       </div>
       <div
         ref={containerRef}
-        className="relative flex-1 min-h-0 overflow-auto rounded border bg-neutral-200 touch-none cursor-grab active:cursor-grabbing dark:bg-neutral-800"
+        className={`relative flex-1 min-h-0 overflow-auto rounded border bg-neutral-200 touch-none cursor-grab active:cursor-grabbing dark:bg-neutral-800 ${centered ? "flex items-center justify-center" : ""}`}
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
