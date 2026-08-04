@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
-import { ChatPanel, type ChatMessage } from "./ChatPanel";
-import { ApiError, apiPost } from "@/lib/apiClient";
+import { ChatPanel, type ChatMessage, type MentionItem } from "./ChatPanel";
+import { ApiError, apiGet, apiPost } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
 
 const STORAGE_KEY = "resume-agent:assistant-drawer";
@@ -24,6 +24,7 @@ export function AssistantDrawer() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
+  const [mentionables, setMentionables] = useState<MentionItem[]>([]);
   // Vertical position only — horizontally the tab always stays flush against
   // the right edge, so dragging can only slide it up/down along that edge.
   const [y, setY] = useState<number | null>(null);
@@ -45,6 +46,17 @@ export function AssistantDrawer() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId, messages }));
   }, [sessionId, messages]);
+
+  // Re-fetch on every open so newly added/removed skills show up without a
+  // page reload (skills can also be added by hand under .claude/skills/).
+  useEffect(() => {
+    if (!open) return;
+    apiGet<MentionItem[]>("/api/assistant/mentionables")
+      .then(setMentionables)
+      .catch(() => {
+        // best-effort: @mention autocomplete just won't have suggestions
+      });
+  }, [open]);
 
   // y is only meaningful client-side (needs window height), so it starts
   // null (tab falls back to a CSS bottom-anchored position) and gets a real
@@ -77,12 +89,18 @@ export function AssistantDrawer() {
     toast("已开启新对话");
   }
 
-  async function handleSend(text: string) {
+  async function handleSend(text: string, mentionedIds: string[] = []) {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setSending(true);
     try {
+      const note =
+        mentionedIds.length > 0
+          ? `The user @mentioned ${mentionedIds.join(
+              ", "
+            )} in their message below — scope your read/update/delete to exactly that target under .claude/ unless they say otherwise.\n\nUser message:\n${text}`
+          : text;
       const data = await apiPost<{ sessionId?: string; reply: string; isError?: boolean }>("/api/assistant", {
-        message: text,
+        message: note,
         sessionId,
       });
       if (data.isError) toast(data.reply);
@@ -176,6 +194,7 @@ export function AssistantDrawer() {
             onSend={handleSend}
             sending={sending}
             placeholder="让我调整 .claude/ 下的 skill 或 memory…"
+            mentionables={mentionables}
           />
         </div>
       )}

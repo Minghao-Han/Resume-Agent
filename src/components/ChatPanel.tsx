@@ -152,7 +152,7 @@ export function ChatPanel({ messages, onSend, sending, placeholder, className, m
           className="textarea flex-1"
           rows={2}
           value={input}
-          placeholder={mentionables ? `${placeholder ?? ""}（输入 @ 可指定针对某条 highlight 修改）` : placeholder}
+          placeholder={mentionables ? `${placeholder ?? ""}（输入 @ 可指定操作对象）` : placeholder}
           onChange={(e) => handleChange(e.target.value, e.target.selectionStart)}
           onKeyDown={handleKeyDown}
         />
