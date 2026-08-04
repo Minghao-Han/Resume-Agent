@@ -11,7 +11,13 @@ type Props = {
   className?: string;
   onCompiled?: (info: TypstCompileInfo) => void;
   debounceMs?: number;
-  /** Center the page within the scroll area instead of pinning it top-left — useful when the container is deliberately wider than the page itself. */
+  /**
+   * Center the page horizontally within the scroll area instead of pinning
+   * it to the left — useful when the container is deliberately wider than
+   * the page itself. Deliberately horizontal-only: vertically centering an
+   * `overflow-auto` flex container clips whatever overflows above center
+   * with no way to scroll up to it, cutting off the top of a tall page.
+   */
   centered?: boolean;
 };
 
@@ -120,7 +126,7 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300, 
       </div>
       <div
         ref={containerRef}
-        className={`relative flex-1 min-h-0 overflow-auto rounded border bg-neutral-200 touch-none cursor-grab active:cursor-grabbing dark:bg-neutral-800 ${centered ? "flex items-center justify-center" : ""}`}
+        className={`relative flex-1 min-h-0 overflow-auto rounded border bg-neutral-200 touch-none cursor-grab active:cursor-grabbing dark:bg-neutral-800 ${centered ? "flex justify-center" : ""}`}
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
