@@ -45,6 +45,7 @@ model Experience {
   type        String
   startDate   String      @default("")
   endDate     String      @default("")
+  location    String      @default("") // City, State or City, Country, e.g. "Pittsburgh, PA"
   rawInput    String
   chatHistory String      @default("[]") // JSON {role, content}[]
   sessionId   String? // Claude Agent SDK session id, so chat can resume() after reload

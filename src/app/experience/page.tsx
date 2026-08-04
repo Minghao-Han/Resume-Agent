@@ -31,6 +31,7 @@ type Highlight = {
 type Experience = ExperienceSummary & {
   startDate: string;
   endDate: string;
+  location: string;
   rawInput: string;
   chatHistory: ChatMessage[];
   sessionId?: string | null;
@@ -55,6 +56,7 @@ const EMPTY: Experience = {
   type: "intern",
   startDate: "",
   endDate: "",
+  location: "",
   rawInput: "",
   chatHistory: [],
   sessionId: null,
@@ -194,6 +196,7 @@ export default function ExperiencePage() {
         type: current.type,
         startDate: current.startDate,
         endDate: current.endDate,
+        location: current.location,
         rawInput: current.rawInput,
         chatHistory: current.chatHistory,
         sessionId: current.sessionId ?? undefined,
@@ -297,6 +300,12 @@ export default function ExperiencePage() {
                 onChange={(e) => setCurrent((c) => ({ ...c, endDate: e.target.value }))}
               />
             </div>
+            <input
+              className="input col-span-2"
+              placeholder="地区，如 Pittsburgh, PA 或 Wuhan, China"
+              value={current.location}
+              onChange={(e) => setCurrent((c) => ({ ...c, location: e.target.value }))}
+            />
           </div>
           <textarea
             className="textarea w-full"

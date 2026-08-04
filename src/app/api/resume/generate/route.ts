@@ -73,6 +73,7 @@ async function handlePost(request: Request) {
       type: e.type,
       startDate: e.startDate,
       endDate: e.endDate,
+      location: e.location,
       highlights: e.highlights.map((h) => ({
         id: h.id,
         title: h.title,

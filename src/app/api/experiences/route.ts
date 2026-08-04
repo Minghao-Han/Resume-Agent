@@ -25,6 +25,7 @@ export async function POST(request: Request) {
         type: body.type,
         startDate: body.startDate,
         endDate: body.endDate,
+        location: body.location,
         rawInput: body.rawInput,
         sessionId: body.sessionId,
         chatHistory: JSON.stringify(body.chatHistory),
