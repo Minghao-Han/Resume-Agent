@@ -1,6 +1,6 @@
 ---
 name: resume-generation
-description: How to select highlights and write the final one-page Typst resume for a given job description.
+description: How to select highlights and write the final one-page Typst resume for a given job description, including which parts of the text should be bolded.
 ---
 
 # Resume Generation
@@ -21,3 +21,24 @@ template to use as a style reference:
    highlight) rather than shrinking font/margins below readable sizes.
 
 Never invent experience, employers, dates, or numbers that are not in the saved data.
+
+## Bold formatting
+
+Two tiers, applied with restraint — don't bold by feel.
+
+**Structural (always bold)**: section headings (Experience / Skills / Projects / …), company/school
+names, and job titles/degrees. These exist so a reader can scan the resume's skeleton — who, where,
+when, what role — in a few seconds.
+
+**In-body, inside bullets (use sparingly)**:
+
+- Bold only two kinds of thing: the quantified result (e.g. "$800," "100 QPS," "15 coupling points")
+  and the specific keyword(s) that match the target JD.
+- **At most one bolded span per bullet.** Bolding every bullet, or bolding more than one thing in the
+  same bullet, defeats the purpose — once everything is bold, bold stops meaning anything and just
+  becomes visual noise.
+- Never bold a whole sentence or a verb — only the word/number that actually proves the value.
+
+A reader spends only a few seconds to ten-some seconds per resume, mostly scanning for numbers and
+keywords — unbolded body text is easy to skim past, but over-bolding (or bolding the wrong thing, like
+a verb) is just as bad, since it stops functioning as emphasis once nothing stands out from the rest.

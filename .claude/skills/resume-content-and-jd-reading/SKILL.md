@@ -1,6 +1,6 @@
 ---
 name: resume-content-and-jd-reading
-description: Use this when deciding what belongs on a resume versus what should be cut, or when the user has a job description (JD) and needs to figure out what it's actually asking for and how to align resume content to it. Covers content-importance judgment (what recruiters actually weigh vs. what's noise) and a repeatable method for reading a JD to extract required vs. nice-to-have signals. Pairs with resume-highlight-extraction (produces the candidate pool) and resume-one-page-fitting (fits the final selection onto one page) — this skill sits in between: it decides which candidates make the cut for a specific job.
+description: Use this when deciding what belongs on a resume versus what should be cut, when the user has a job description (JD) and needs to figure out what it's actually asking for and how to align resume content to it, when selecting which highlights to use for a specific application, or when a drafted resume has leftover space after all content is placed and needs to be filled. Covers content-importance judgment (what recruiters actually weigh vs. what's noise), a repeatable method for reading a JD to extract required vs. nice-to-have signals, tag-based highlight selection per JD (as opposed to a fixed generic ranking), and a tiered approach for filling leftover page space. Pairs with resume-highlight-extraction (produces the candidate pool) and resume-one-page-fitting (fits the final selection onto one page) — this skill sits in between: it decides which candidates make the cut for a specific job.
 ---
 
 # Resume Content Judgment & JD Reading
@@ -136,6 +136,70 @@ on their own — e.g. not "skills: user segmentation," but "grew private-domain
 repeat-purchase rate by 30% through user segmentation and targeted campaigns."
 A keyword embedded in a real result carries more signal than the same keyword
 sitting in a bare list.
+
+## Part 4 — Select by tag-match to the JD, not generic rank
+
+Highlight selection for a specific application is a matching problem against
+*this* JD — not a re-use of a fixed "greatest hits" bullet set, and not a
+mechanical application of the general priority ranking from
+`resume-highlight-extraction`.
+
+1. **Tag every highlight specifically.** Each highlight should carry tags
+   naming the concrete capability/domain it demonstrates (e.g. "concurrency,"
+   "security judgment," "system design," "incident response," "independent
+   ownership") — not vague catch-alls like "technical skills."
+2. **Extract the JD's high-weight keywords** (Part 3): what's flagged
+   required, what repeats.
+3. **Select the highlights whose tags overlap most with those keywords**,
+   for each experience entry — not the highlights that rank highest on the
+   generic `resume-highlight-extraction` priority list. A highlight ranked
+   #1 on that general list still gets skipped or pushed down the page if it
+   doesn't match the current JD; a lower-ranked highlight that does match
+   gets promoted instead.
+4. **Re-run this matching for every new application.** The same person, the
+   same highlight pool, applying to a backend role vs. a security role
+   should produce different bullet selections within the same experience
+   entry — never carry one fixed bullet set across applications without
+   re-matching it against the new JD.
+
+> Don't run one "greatest hits" set for every application — re-match by tag
+> against each JD, every time.
+
+## Part 5 — Filling leftover space
+
+The reverse problem: all selected content is placed and the resume still has
+room left on the page. Don't fill it by padding — each tier below has a
+different lever, tried in this order, and nothing gets added that wouldn't
+independently pass the relevance test in Part 1/Part 3.
+
+### Tier 1 — A little leftover space: layout, not content
+
+If the gap is small, close it the same way `resume-one-page-fitting` closes an
+overflow, just in reverse: increase body font size (up to the 12pt ceiling)
+or loosen line spacing slightly (only enough to look intentional, not so much
+that sections start to feel disconnected). Don't reach for new content to
+soak up a gap this small.
+
+### Tier 2 — A moderate amount of leftover space: deepen what's already there
+
+Before adding anything new, go back to the candidate pool from
+`resume-highlight-extraction` and check whether an existing project/experience
+entry already on the resume has another verified, quantified highlight that
+didn't make the first cut. Add it as a new bullet to that entry rather than
+introducing a new section. Prefer deepening the entries that already rank
+highest in relevance/recency (Part 1) — they're the ones that most naturally
+absorb extra space and benefit from more evidence. Every added bullet still
+has to meet the normal bar: outcome-oriented, quantified, no invented numbers.
+
+### Tier 3 — A lot of leftover space: add a secondarily-relevant entry
+
+Only reach for this once Tiers 1–2 genuinely can't close the gap. Pull a new
+project or experience entry from the candidate pool and run it through the
+same relevance test as Part 1/Part 3 ("which requirement does this support?")
+— it doesn't need to be a top-tier match (a top match would already be on the
+resume), but it needs a real, defensible connection to the target role, not
+just "impressive in general." Place it after the higher-relevance entries,
+consistent with the relevance-drives-ordering principle in Part 1.
 
 ## How the three resume skills fit together
 
