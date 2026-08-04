@@ -1,6 +1,11 @@
-import { runAgentTurn, extractFencedBlock } from "./core";
+import { runAgentTurn, extractFencedBlock, PROJECT_ROOT } from "./core";
 import { sanitizeTemplateSource } from "./templateSanitize";
 import { sanitizeGeneratedTypst } from "./typstOutput";
+
+// Scoped to just this app's own resume-writing skills (not the user's
+// personal/global skills or Claude Code's bundled ones, which are irrelevant
+// noise for this narrow-purpose agent) — see .claude/skills/.
+const RESUME_GEN_SKILLS = ["resume-content-and-jd-reading", "resume-one-page-fitting", "resume-generation"];
 
 export type HighlightForPrompt = {
   id: string;
@@ -65,7 +70,9 @@ CRITICAL — Typst interpolation: never write a bare variable interpolation imme
 
 Output format (every single reply, including follow-up refinements): first output a fenced block tagged \`\`\`meta containing exactly two lines identifying the target company and role this resume is for (read from the JD) — \`COMPANY: <company name, or empty after the colon if it can't be determined>\` and \`ROLE: <target role/title, or empty after the colon if it can't be determined>\`. Then briefly explain what you changed and why in 2-4 sentences, then output the COMPLETE current resume Typst source (not a diff) in a fenced code block tagged \`\`\`typst. Always include the full source so the caller can always re-render from your latest reply alone.
 
-If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest experience) rather than shrinking font/margins below readable sizes.`;
+If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest experience) rather than shrinking font/margins below readable sizes.
+
+You have Skill access to this project's own resume-writing skills (resume-content-and-jd-reading, resume-one-page-fitting, resume-generation) — consult them for how to select/prioritize highlights against the JD, how to fit content onto one page, and how to apply bold formatting. Follow their guidance over your own general instincts when they conflict.`;
 
 function buildInitialPrompt(params: {
   jdText: string;
@@ -121,10 +128,12 @@ export async function startResumeGeneration(params: {
   const prompt = buildInitialPrompt(params);
 
   const { sessionId, replyText, isError } = await runAgentTurn(prompt, {
+    cwd: PROJECT_ROOT,
     systemPrompt: SYSTEM_PROMPT,
-    tools: ["WebFetch"],
-    allowedTools: ["WebFetch"],
-    settingSources: [],
+    tools: ["WebFetch", "Skill"],
+    allowedTools: ["WebFetch", "Skill"],
+    skills: RESUME_GEN_SKILLS,
+    settingSources: ["project", "local"],
     settings: { autoMemoryEnabled: false },
     permissionMode: "default",
   });
@@ -155,10 +164,12 @@ export async function continueResumeGeneration(params: {
   const { sessionId, message } = params;
 
   const { sessionId: newSessionId, replyText, isError } = await runAgentTurn(message, {
+    cwd: PROJECT_ROOT,
     systemPrompt: SYSTEM_PROMPT,
-    tools: ["WebFetch"],
-    allowedTools: ["WebFetch"],
-    settingSources: [],
+    tools: ["WebFetch", "Skill"],
+    allowedTools: ["WebFetch", "Skill"],
+    skills: RESUME_GEN_SKILLS,
+    settingSources: ["project", "local"],
     settings: { autoMemoryEnabled: false },
     resume: sessionId,
     permissionMode: "default",
