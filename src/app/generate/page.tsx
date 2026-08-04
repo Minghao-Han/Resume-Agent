@@ -103,6 +103,19 @@ export default function GeneratePage() {
     );
   }
 
+  function fillLeftoverSpace() {
+    const usedPct = Math.round((compileInfo.fillRatio ?? 0) * 100);
+    sendChat(
+      `The compiled resume is only using about ${usedPct}% of the page — there's meaningful leftover white space at the bottom. Please fill it, following the tiered approach in the resume-content-and-jd-reading skill's "Filling leftover space" section (layout adjustments first, then deepen an existing entry with another verified highlight, then add a secondarily-relevant entry only if still needed).`
+    );
+  }
+
+  const hasLeftoverSpace =
+    typstSource.trim() !== "" &&
+    compileInfo.pageCount === 1 &&
+    compileInfo.fillRatio !== undefined &&
+    compileInfo.fillRatio < 0.85;
+
   async function save() {
     if (!typstSource) return;
     setSaving(true);
@@ -207,6 +220,14 @@ export default function GeneratePage() {
             <span>当前 {compileInfo.pageCount} 页，超出一页限制</span>
             <button type="button" className="btn-secondary" onClick={shortenToOnePage} disabled={generating}>
               自动压缩到一页
+            </button>
+          </div>
+        )}
+        {hasLeftoverSpace && (
+          <div className="flex items-center justify-between rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+            <span>页面下方还有较多空白（约用了 {Math.round((compileInfo.fillRatio ?? 0) * 100)}%）</span>
+            <button type="button" className="btn-secondary" onClick={fillLeftoverSpace} disabled={generating}>
+              自动填充更多内容
             </button>
           </div>
         )}

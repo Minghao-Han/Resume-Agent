@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { compileTypstSvg } from "@/lib/typstClient";
 
-export type TypstCompileInfo = { pageCount: number; error: string | null; width?: number; height?: number };
+export type TypstCompileInfo = {
+  pageCount: number;
+  error: string | null;
+  width?: number;
+  height?: number;
+  /** For single-page docs: how far down the page real content extends, as a fraction of page height (0-1ish). Undefined until measured post-paint, or for multi-page docs where it isn't meaningful. */
+  fillRatio?: number;
+};
 
 type Props = {
   source: string;
@@ -31,6 +38,7 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300, 
   const [scale, setScale] = useState(1);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgHostRef = useRef<HTMLDivElement>(null);
 
   const onCompiledRef = useRef(onCompiled);
   useEffect(() => {
@@ -39,6 +47,7 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300, 
 
   const generationRef = useRef(0);
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startScrollLeft: 0, startScrollTop: 0 });
+  const lastInfoRef = useRef<TypstCompileInfo>({ pageCount: 0, error: null });
 
   useEffect(() => {
     const generation = ++generationRef.current;
@@ -49,16 +58,50 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300, 
         setSvg(compiled);
         setSize({ width, height });
         setError(null);
-        onCompiledRef.current?.({ pageCount, error: null, width, height });
+        const info: TypstCompileInfo = { pageCount, error: null, width, height };
+        lastInfoRef.current = info;
+        onCompiledRef.current?.(info);
       } catch (err) {
         if (generationRef.current !== generation) return;
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
-        onCompiledRef.current?.({ pageCount: 0, error: message });
+        const info: TypstCompileInfo = { pageCount: 0, error: message };
+        lastInfoRef.current = info;
+        onCompiledRef.current?.(info);
       }
     }, debounceMs);
     return () => clearTimeout(handle);
   }, [source, debounceMs]);
+
+  // Runs after the compiled SVG is actually painted, so real DOM geometry
+  // (getBBox) is available — measures how far down the page real content
+  // extends, excluding the injected white backing rect, to detect a resume
+  // that's under-filling the page (the flip side of the overflow/pageCount
+  // check above, which the UI already surfaces a "shorten" action for).
+  useEffect(() => {
+    if (!svg || lastInfoRef.current.pageCount !== 1) return;
+    const svgEl = svgHostRef.current?.querySelector("svg");
+    const page = svgEl?.querySelector<SVGGElement>(".typst-page");
+    if (!page) return;
+    const pageHeight = parseFloat(page.getAttribute("data-page-height") || "0");
+    if (!pageHeight) return;
+    const bgRect = page.querySelector<SVGRectElement>(".typst-page-bg");
+    const prevDisplay = bgRect?.style.display;
+    if (bgRect) bgRect.style.display = "none";
+    let fillRatio: number | undefined;
+    try {
+      const bbox = page.getBBox();
+      fillRatio = (bbox.y + bbox.height) / pageHeight;
+    } catch {
+      fillRatio = undefined;
+    } finally {
+      if (bgRect) bgRect.style.display = prevDisplay ?? "";
+    }
+    if (fillRatio === undefined) return;
+    const info: TypstCompileInfo = { ...lastInfoRef.current, fillRatio };
+    lastInfoRef.current = info;
+    onCompiledRef.current?.(info);
+  }, [svg]);
 
   function resetView() {
     setScale(1);
@@ -140,6 +183,7 @@ export function TypstPreview({ source, className, onCompiled, debounceMs = 300, 
         )}
         <div style={{ width: size.width * scale, height: size.height * scale }} className="p-4">
           <div
+            ref={svgHostRef}
             style={{
               width: size.width,
               height: size.height,

@@ -64,7 +64,10 @@ function addPageGaps(svg: string): { svg: string; pageCount: number; width: numb
   if (pages.length <= 1) {
     // Still give the single page a white backing rect for a page-on-desk look.
     const withRect = pages[0]
-      ? svg.replace(pages[0].tag, `${pages[0].tag}<rect x="0" y="0" width="${pages[0].w}" height="${pages[0].h}" fill="white"/>`)
+      ? svg.replace(
+          pages[0].tag,
+          `${pages[0].tag}<rect class="typst-page-bg" x="0" y="0" width="${pages[0].w}" height="${pages[0].h}" fill="white"/>`
+        )
       : svg;
     return { svg: withRect, pageCount: pages.length || 1, width: naturalWidth, height: naturalHeight };
   }
