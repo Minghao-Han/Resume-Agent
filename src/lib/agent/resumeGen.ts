@@ -18,6 +18,18 @@ const RESUME_GEN_SKILLS = ["resume-content-and-jd-reading", "resume-one-page-fit
 // guidance) doesn't need Opus/Sonnet-level reasoning to do well.
 const GENERATION_MODEL = "claude-haiku-4-5-20251001";
 
+// Extended thinking was silently eating the vast majority of every turn's
+// latency and output-token cost with no visible benefit — a real user-facing
+// generation call was measured at ~6900-9500 output tokens and 70-110s per
+// round despite the actual visible reply+typstSource only needing roughly
+// 1500 of those tokens; with thinking explicitly disabled below, the exact
+// same task dropped to ~1800 output tokens and ~20s with comparable output
+// quality. Given the auto-convergence loop (autoConverge.ts) can chain up to
+// 4 of these calls per user action, this alone was the difference between a
+// generation completing in under 2 minutes and taking 5-8 minutes with zero
+// progress feedback in the UI — this task (select from a given pool, follow
+// explicit char-count/skill guidance) doesn't need deep chain-of-thought.
+
 export type HighlightForPrompt = {
   id: string;
   title: string;
@@ -209,6 +221,7 @@ export async function startResumeGeneration(params: {
     model: GENERATION_MODEL,
     systemPrompt: SYSTEM_PROMPT,
     outputFormat: { type: "json_schema", schema: RESUME_OUTPUT_JSON_SCHEMA },
+    thinking: { type: "disabled" },
     tools: ["WebFetch", "Skill"],
     allowedTools: ["WebFetch", "Skill"],
     skills: RESUME_GEN_SKILLS,
@@ -249,6 +262,7 @@ export async function continueResumeGeneration(params: {
     model: GENERATION_MODEL,
     systemPrompt: SYSTEM_PROMPT,
     outputFormat: { type: "json_schema", schema: RESUME_OUTPUT_JSON_SCHEMA },
+    thinking: { type: "disabled" },
     tools: ["WebFetch", "Skill"],
     allowedTools: ["WebFetch", "Skill"],
     skills: RESUME_GEN_SKILLS,
