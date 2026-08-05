@@ -1,12 +1,22 @@
-import { runAgentTurn, extractFencedBlock, PROJECT_ROOT } from "./core";
+import { z } from "zod";
+import { runAgentTurn, PROJECT_ROOT, type AgentTurnUsage } from "./core";
 import { sanitizeTemplateSource } from "./templateSanitize";
 import { sanitizeGeneratedTypst } from "./typstOutput";
+import { estimateTargetCharCount } from "./charRange";
 import type { TemplateCalibration } from "./templateCalibration";
+
+export type { AgentTurnUsage } from "./core";
 
 // Scoped to just this app's own resume-writing skills (not the user's
 // personal/global skills or Claude Code's bundled ones, which are irrelevant
 // noise for this narrow-purpose agent) — see .claude/skills/.
 const RESUME_GEN_SKILLS = ["resume-content-and-jd-reading", "resume-one-page-fitting", "resume-generation"];
+
+// Pinned rather than left at the CLI default — profiling showed a single
+// initial generation turn taking ~2+ minutes. This task (select from a given
+// pool, write within a template's existing structure, follow char-count
+// guidance) doesn't need Opus/Sonnet-level reasoning to do well.
+const GENERATION_MODEL = "claude-haiku-4-5-20251001";
 
 export type HighlightForPrompt = {
   id: string;
@@ -50,6 +60,43 @@ export type PersonalInfoForPrompt = {
   }[];
 };
 
+// Enforced at the API level (via Options.outputFormat below) rather than
+// asked for as a markdown-fence convention in prose — a smaller/faster model
+// (this app pins Haiku for cost/latency) proved unreliable at consistently
+// following a multi-part "meta block, then prose, then typst block" text
+// convention on its own; a JSON schema is a hard constraint the SDK enforces
+// regardless of model size.
+const RESUME_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    company: {
+      type: "string",
+      description: "Target company name read from the JD, or an empty string if it can't be determined.",
+    },
+    role: {
+      type: "string",
+      description: "Target role/title read from the JD, or an empty string if it can't be determined.",
+    },
+    explanation: {
+      type: "string",
+      description: "2-4 sentences explaining what was changed and why.",
+    },
+    typstSource: {
+      type: "string",
+      description: "The complete, compilable Typst source for the resume — the full document every time, never a diff.",
+    },
+  },
+  required: ["company", "role", "explanation", "typstSource"],
+  additionalProperties: false,
+};
+
+const resumeOutputSchema = z.object({
+  company: z.string().default(""),
+  role: z.string().default(""),
+  explanation: z.string().default(""),
+  typstSource: z.string(),
+});
+
 const SYSTEM_PROMPT = `You write tailored one-page resumes in Typst for a resume-building tool.
 
 You will be given: the user's personal info (including optional GitHub/LinkedIn — include them in the header only if non-empty), a job description (JD, possibly as a URL you must fetch with WebFetch), a library of the user's past experiences, and a Typst template to use as a style/layout reference. Each experience (e.g. one internship) has its own startDate/endDate and optional location (e.g. "Pittsburgh, PA") and contains one or more independently STAR-Q'd highlights, each with its own role tags and a pre-written resumeBullet. Use the experience's own startDate/endDate for its date range on the resume — don't write a placeholder like "[Dates Not Provided]" when they're actually given. Include an experience's location alongside its dates/title only if the template's own layout already has a slot for it and the location is non-empty — don't invent a new layout element just to fit it in.
@@ -69,30 +116,11 @@ CRITICAL — Typst escaping: an unescaped "@" followed by a letter/digit (e.g. "
 
 CRITICAL — Typst interpolation: never write a bare variable interpolation immediately touching an underscore on either side, e.g. \`_#degree_\` to italicize a value — "_" is a valid identifier character in Typst, so \`#degree_\` parses as a reference to a variable literally named "degree_" and swallows the underscore meant to close the emphasis, causing "unclosed delimiter". Always parenthesize the interpolation in that situation: write \`_#(degree)_\` instead.
 
-Output format (every single reply, including follow-up refinements): first output a fenced block tagged \`\`\`meta containing exactly two lines identifying the target company and role this resume is for (read from the JD) — \`COMPANY: <company name, or empty after the colon if it can't be determined>\` and \`ROLE: <target role/title, or empty after the colon if it can't be determined>\`. Then briefly explain what you changed and why in 2-4 sentences, then output the COMPLETE current resume Typst source (not a diff) in a fenced code block tagged \`\`\`typst. Always include the full source so the caller can always re-render from your latest reply alone.
+Output format (every single reply, including follow-up refinements): your response is returned as structured JSON with fields company, role, explanation, and typstSource — fill in company/role from the JD, explanation with 2-4 sentences on what you changed and why, and typstSource with the COMPLETE current resume Typst source (not a diff, not wrapped in markdown fences — the raw source text). Always include the full source in typstSource so the caller can always re-render from your latest reply alone.
 
 If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest experience) rather than shrinking font/margins below readable sizes.
 
 You have Skill access to this project's own resume-writing skills (resume-content-and-jd-reading, resume-one-page-fitting, resume-generation) — consult them for how to select/prioritize highlights against the JD, how to fit content onto one page, and how to apply bold formatting. Follow their guidance over your own general instincts when they conflict.`;
-
-/**
- * Rough pre-generation sizing hint from a template's calibration (see
- * templateCalibration.ts): solves the fitted linear model for how many total
- * bullet characters would fill the page given a typical entry/bullet count,
- * so the model has *some* size target before writing anything — not a rule,
- * just an initial guess the post-generation auto-convergence loop (see
- * autoConverge.ts) corrects for afterward regardless of how close this is.
- */
-function estimateCharBudget(calibration: TemplateCalibration, availableExperienceCount: number): number | null {
-  if (calibration.perChar <= 0) return null;
-  const entries = Math.min(Math.max(availableExperienceCount, 1), 4);
-  const bulletsPerEntry = 3;
-  const bullets = entries * bulletsPerEntry;
-  const remaining =
-    calibration.realPageHeightPt - calibration.intercept - calibration.perEntry * entries - calibration.perBullet * bullets;
-  if (remaining <= 0) return null;
-  return Math.round(remaining / calibration.perChar);
-}
 
 function buildInitialPrompt(params: {
   jdText: string;
@@ -104,8 +132,13 @@ function buildInitialPrompt(params: {
 }): string {
   const { jdText, jdIsUrl, personalInfo, experiences, templateSource, calibration } = params;
   const cleanedTemplate = sanitizeTemplateSource(templateSource, personalInfo);
-  const availableExperienceCount = experiences.filter((e) => e.highlights.length > 0).length;
-  const charBudget = calibration ? estimateCharBudget(calibration, availableExperienceCount) : null;
+  // Rough pre-generation sizing hint from a template's known-good char-count
+  // range (see templateCalibration.ts/charRange.ts) — not a rule, just an
+  // initial guess the post-generation auto-convergence loop (autoConverge.ts)
+  // corrects for afterward regardless of how close this is.
+  const charBudget = calibration
+    ? estimateTargetCharCount({ low: calibration.charRangeLow, high: calibration.charRangeHigh })
+    : null;
 
   return [
     jdIsUrl
@@ -115,27 +148,40 @@ function buildInitialPrompt(params: {
     `\nExperience library (JSON, each with one or more STAR-Q'd highlights):\n${JSON.stringify(experiences, null, 2)}`,
     `\nTypst template — use it as-is, adding your tailored content via its existing structure/functions. Any \`#let name/email/phone/location = ...\` bindings have already been rewritten to match the Personal info above (or blanked if not provided) — keep them as-is, don't restore whatever the template originally had. If it has an \`#import "@preview/...": *\` line, keep it unchanged and call the functions it provides exactly as the template does:\n\`\`\`typst\n${cleanedTemplate}\n\`\`\``,
     charBudget
-      ? `\nRough sizing guide (not a rule): based on this template's real layout, roughly ${charBudget} total characters of bullet content across the highlights you select would closely fill one page. Weigh this alongside actual JD-relevance when choosing how many highlights/bullets to include — relevance still decides which ones, this is only a size target.`
+      ? `\nRough sizing guide (not a rule): based on this template's known capacity, a resume body (everything after the header/personal-info setup — sections, entries, bullets combined) of roughly ${charBudget} characters tends to closely fill one page. Weigh this alongside actual JD-relevance when choosing how many highlights/bullets to include — relevance still decides which ones, this is only a size target.`
       : "",
     `\nGenerate the tailored one-page resume now.`,
   ].join("\n");
 }
 
-function extractCleanTypst(replyText: string): string | null {
-  const raw = extractFencedBlock(replyText, "typst");
-  return raw === null ? null : sanitizeGeneratedTypst(raw);
-}
+type ParsedResumeOutput = { company: string; role: string; reply: string; typstSource: string };
 
-function extractCompanyRole(replyText: string): { company: string; role: string } {
-  const meta = extractFencedBlock(replyText, "meta") ?? "";
-  const company = meta.match(/^COMPANY:\s*(.*)$/m)?.[1]?.trim() ?? "";
-  const role = meta.match(/^ROLE:\s*(.*)$/m)?.[1]?.trim() ?? "";
-  return { company, role };
-}
-
-/** Strips the internal ```meta block out of what's shown to the user in chat. */
-function stripMetaBlock(replyText: string): string {
-  return replyText.replace(/```meta\n[\s\S]*?```\n?/i, "").trim();
+/**
+ * Validates the SDK's structured_output against our schema. Falls back to
+ * parsing replyText as raw JSON (in case a given CLI/model combination puts
+ * the structured payload there instead) before giving up — but does NOT fall
+ * back to markdown-fence scraping, since that's exactly the unreliable
+ * mechanism structured output replaced.
+ */
+function parseStructuredOutput(structuredOutput: unknown, replyText: string): ParsedResumeOutput | null {
+  const fromStructured = resumeOutputSchema.safeParse(structuredOutput);
+  const parsed = fromStructured.success
+    ? fromStructured.data
+    : (() => {
+        try {
+          const fromText = resumeOutputSchema.safeParse(JSON.parse(replyText));
+          return fromText.success ? fromText.data : null;
+        } catch {
+          return null;
+        }
+      })();
+  if (!parsed) return null;
+  return {
+    company: parsed.company,
+    role: parsed.role,
+    reply: parsed.explanation,
+    typstSource: sanitizeGeneratedTypst(parsed.typstSource),
+  };
 }
 
 export async function startResumeGeneration(params: {
@@ -152,12 +198,15 @@ export async function startResumeGeneration(params: {
   company: string;
   role: string;
   isError: boolean;
+  usage: AgentTurnUsage;
 }> {
   const prompt = buildInitialPrompt(params);
 
-  const { sessionId, replyText, isError } = await runAgentTurn(prompt, {
+  const { sessionId, replyText, isError, structuredOutput, usage } = await runAgentTurn(prompt, {
     cwd: PROJECT_ROOT,
+    model: GENERATION_MODEL,
     systemPrompt: SYSTEM_PROMPT,
+    outputFormat: { type: "json_schema", schema: RESUME_OUTPUT_JSON_SCHEMA },
     tools: ["WebFetch", "Skill"],
     allowedTools: ["WebFetch", "Skill"],
     skills: RESUME_GEN_SKILLS,
@@ -166,15 +215,16 @@ export async function startResumeGeneration(params: {
     permissionMode: "default",
   });
 
-  const { company, role } = isError ? { company: "", role: "" } : extractCompanyRole(replyText);
+  const parsed = isError ? null : parseStructuredOutput(structuredOutput, replyText);
 
   return {
     sessionId,
-    reply: isError ? replyText : stripMetaBlock(replyText),
-    typstSource: isError ? null : extractCleanTypst(replyText),
-    company,
-    role,
-    isError,
+    reply: parsed?.reply ?? replyText,
+    typstSource: parsed?.typstSource ?? null,
+    company: parsed?.company ?? "",
+    role: parsed?.role ?? "",
+    usage,
+    isError: isError || !parsed,
   };
 }
 
@@ -188,12 +238,15 @@ export async function continueResumeGeneration(params: {
   company: string;
   role: string;
   isError: boolean;
+  usage: AgentTurnUsage;
 }> {
   const { sessionId, message } = params;
 
-  const { sessionId: newSessionId, replyText, isError } = await runAgentTurn(message, {
+  const { sessionId: newSessionId, replyText, isError, structuredOutput, usage } = await runAgentTurn(message, {
     cwd: PROJECT_ROOT,
+    model: GENERATION_MODEL,
     systemPrompt: SYSTEM_PROMPT,
+    outputFormat: { type: "json_schema", schema: RESUME_OUTPUT_JSON_SCHEMA },
     tools: ["WebFetch", "Skill"],
     allowedTools: ["WebFetch", "Skill"],
     skills: RESUME_GEN_SKILLS,
@@ -203,14 +256,15 @@ export async function continueResumeGeneration(params: {
     permissionMode: "default",
   });
 
-  const { company, role } = isError ? { company: "", role: "" } : extractCompanyRole(replyText);
+  const parsed = isError ? null : parseStructuredOutput(structuredOutput, replyText);
 
   return {
     sessionId: newSessionId,
-    reply: isError ? replyText : stripMetaBlock(replyText),
-    isError,
-    typstSource: isError ? null : extractCleanTypst(replyText),
-    company,
-    role,
+    reply: parsed?.reply ?? replyText,
+    isError: isError || !parsed,
+    typstSource: parsed?.typstSource ?? null,
+    company: parsed?.company ?? "",
+    role: parsed?.role ?? "",
+    usage,
   };
 }

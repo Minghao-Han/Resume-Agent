@@ -73,29 +73,23 @@ export async function compileToSvg(source: string): Promise<ServerCompileResult>
 const DECLARATION_KEYWORDS = ["#import", "#let", "#set", "#show"];
 
 /**
- * Finds the boundary between a template's declarations (imports, `#let`
+ * Finds the character index where a template's declarations (imports, `#let`
  * bindings, `#set`/`#show` rules — including multi-line ones like
- * `#show: resume.with(...)`) and its real body content, and splices in
- * `#set page(height: auto)` right after that boundary.
+ * `#show: resume.with(...)`) end and its real body content begins.
  *
  * Deliberately not tied to any specific heading convention (e.g. `==`) —
  * it only recognizes declaration keywords, so it works both on templates
- * built around a `@preview` package (whose own internal page setup this
- * later override then takes precedence over, since Typst `set` rules merge
- * per-field and a later one for the same field wins) and on plain
- * hand-written templates with no package import at all.
- *
- * Note: because Typst applies a page-property change starting from the next
- * page, this override causes an (expected, harmless) page break right at the
- * splice point — see measureAutoHeight, which reads the LAST page's height,
- * not the first.
+ * built around a `@preview` package and on plain hand-written templates with
+ * no package import at all. Shared by insertAutoHeightOverride (splice
+ * point) and countBodyChars (where to start counting).
  */
-export function insertAutoHeightOverride(source: string): string {
+export function findBodyStartIndex(source: string): number {
   const mask = computeCodeMask(source);
   const lines = source.split("\n");
   let idx = 0;
   let depth = 0;
   let lastDeclLine = -1;
+  let lastDeclEndIdx = 0;
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
@@ -125,6 +119,7 @@ export function insertAutoHeightOverride(source: string): string {
     const stillDeclaration = startDepth > 0 || isBlankOrComment || startsWithDecl;
     if (stillDeclaration) {
       lastDeclLine = li;
+      lastDeclEndIdx = lineEnd + 1;
     } else if (startDepth === 0) {
       break;
     }
@@ -132,12 +127,34 @@ export function insertAutoHeightOverride(source: string): string {
     idx = lineEnd + 1;
   }
 
-  if (lastDeclLine === -1) {
-    return "#set page(height: auto)\n" + source;
-  }
-  const withOverride = lines.slice();
-  withOverride.splice(lastDeclLine + 1, 0, "#set page(height: auto)");
-  return withOverride.join("\n");
+  return lastDeclLine === -1 ? 0 : Math.min(lastDeclEndIdx, source.length);
+}
+
+/**
+ * Splices `#set page(height: auto)` right after a template's declarations
+ * boundary (see findBodyStartIndex) — Typst `set` rules merge per-field and
+ * a later one for the same field wins, so this takes precedence over
+ * whatever page height an imported `@preview` package's own setup applied.
+ *
+ * Note: because Typst applies a page-property change starting from the next
+ * page, this override causes an (expected, harmless) page break right at the
+ * splice point — see measureAutoHeight, which reads the LAST page's height,
+ * not the first.
+ */
+export function insertAutoHeightOverride(source: string): string {
+  const idx = findBodyStartIndex(source);
+  return source.slice(0, idx) + "#set page(height: auto)\n" + source.slice(idx);
+}
+
+/**
+ * Counts characters in a template's body content only (everything after the
+ * declarations boundary — see findBodyStartIndex), as a simple, robust
+ * proxy for "how much content is here" that doesn't need to semantically
+ * parse bullets/entries. Used to bracket a per-template char-count range
+ * that reliably fills one page (see templateCalibration.ts).
+ */
+export function countBodyChars(source: string): number {
+  return source.length - findBodyStartIndex(source);
 }
 
 /**

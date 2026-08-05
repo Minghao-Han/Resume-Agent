@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { startResumeGeneration, continueResumeGeneration } from "@/lib/agent/resumeGen";
-import { runConvergenceLoop, type RoundResult } from "@/lib/agent/autoConverge";
+import { runConvergenceLoop, MIN_FILL_RATIO, type RoundResult } from "@/lib/agent/autoConverge";
 import { measureRealPageHeight } from "@/lib/agent/typstServerCompile";
+import { narrowRange } from "@/lib/agent/charRange";
 import type { TemplateCalibration } from "@/lib/agent/templateCalibration";
+import type { AgentTurnUsage } from "@/lib/agent/core";
 import { errorResponse } from "@/lib/apiError";
 
 const bodySchema = z.object({
@@ -30,6 +32,22 @@ function parseCalibration(raw: string | null | undefined): TemplateCalibration |
   } catch {
     return null;
   }
+}
+
+/** Total cost/time/tokens across every round of a generation call — the
+ * auto-convergence loop can spend several LLM turns per user-visible
+ * "generate"/"send" action, so this is what /generate should actually
+ * display, not just the first round's usage. */
+function sumUsage(rounds: RoundResult[]): AgentTurnUsage {
+  return rounds.reduce(
+    (acc, r) => ({
+      durationMs: acc.durationMs + r.usage.durationMs,
+      inputTokens: acc.inputTokens + r.usage.inputTokens,
+      outputTokens: acc.outputTokens + r.usage.outputTokens,
+      totalCostUsd: acc.totalCostUsd + r.usage.totalCostUsd,
+    }),
+    { durationMs: 0, inputTokens: 0, outputTokens: 0, totalCostUsd: 0 }
+  );
 }
 
 async function handlePost(request: Request) {
@@ -115,19 +133,61 @@ async function handlePost(request: Request) {
   // or nothing to check (error/no content) — skip the convergence loop, same
   // single-round shape as before.
   if (!template || !firstRound.typstSource || firstRound.isError) {
-    return NextResponse.json({ sessionId: firstRound.sessionId, rounds: [firstRound], bestIndex: 0, isError: firstRound.isError });
+    return NextResponse.json({
+      sessionId: firstRound.sessionId,
+      rounds: [firstRound],
+      bestIndex: 0,
+      isError: firstRound.isError,
+      usage: sumUsage([firstRound]),
+    });
   }
 
   const calibration = parseCalibration(template.calibration);
   const realPageHeightPt = calibration?.realPageHeightPt ?? (await measureRealPageHeight(template.typstSource));
   if (realPageHeightPt === null) {
-    return NextResponse.json({ sessionId: firstRound.sessionId, rounds: [firstRound], bestIndex: 0, isError: firstRound.isError });
+    return NextResponse.json({
+      sessionId: firstRound.sessionId,
+      rounds: [firstRound],
+      bestIndex: 0,
+      isError: firstRound.isError,
+      usage: sumUsage([firstRound]),
+    });
   }
 
-  const { rounds, bestIndex } = await runConvergenceLoop(firstRound, realPageHeightPt);
+  const { rounds, bestIndex, fits } = await runConvergenceLoop(firstRound, realPageHeightPt);
   // The conversation's actual current session — not necessarily the "best"
   // round's, if an auto-correction overshot; see autoConverge.ts.
   const sessionId = rounds[rounds.length - 1].sessionId;
 
-  return NextResponse.json({ sessionId, rounds, bestIndex, isError: rounds[bestIndex].isError });
+  // Every real generation call narrows the template's char-count range a bit
+  // further, whether or not it needed a correction — a round that landed
+  // straight in the acceptable band isn't a boundary sample, so narrowRange
+  // is a no-op for it, but overflow/underfill rounds (including corrective
+  // ones) are genuine new data.
+  if (body.templateId) {
+    let range = { low: calibration?.charRangeLow ?? null, high: calibration?.charRangeHigh ?? null };
+    for (const fit of fits) {
+      range = narrowRange(range, fit, MIN_FILL_RATIO);
+    }
+    if (range.low !== calibration?.charRangeLow || range.high !== calibration?.charRangeHigh) {
+      const updated: TemplateCalibration = {
+        charRangeLow: range.low,
+        charRangeHigh: range.high,
+        realPageHeightPt,
+        calibratedAt: new Date().toISOString(),
+      };
+      await prisma.resumeTemplate.update({
+        where: { id: body.templateId },
+        data: { calibration: JSON.stringify(updated) },
+      });
+    }
+  }
+
+  return NextResponse.json({
+    sessionId,
+    rounds,
+    bestIndex,
+    isError: rounds[bestIndex].isError,
+    usage: sumUsage(rounds),
+  });
 }

@@ -7,11 +7,29 @@ export type AgentToolCall = {
   input: Record<string, unknown>;
 };
 
+export type AgentTurnUsage = {
+  durationMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalCostUsd: number;
+};
+
+const ZERO_USAGE: AgentTurnUsage = { durationMs: 0, inputTokens: 0, outputTokens: 0, totalCostUsd: 0 };
+
 export type AgentTurnResult = {
   sessionId: string | undefined;
   replyText: string;
   toolCalls: AgentToolCall[];
   isError: boolean;
+  /** Present when options.outputFormat requested structured JSON output and
+   * the model complied — the SDK enforces the schema at the API level, which
+   * is far more reliable than asking a (especially smaller/faster) model to
+   * remember a specific markdown-fence convention on its own. Callers should
+   * still validate the shape (e.g. with zod) before trusting it. */
+  structuredOutput?: unknown;
+  /** Zeroed out if the turn errored before a result message arrived (e.g. the
+   * CLI subprocess threw outright) — there's nothing real to report then. */
+  usage: AgentTurnUsage;
 };
 
 /**
@@ -28,6 +46,8 @@ export async function runAgentTurn(
   let sessionId: string | undefined;
   let replyText = "";
   let isError = false;
+  let structuredOutput: unknown;
+  let usage: AgentTurnUsage = ZERO_USAGE;
   const toolCalls: AgentToolCall[] = [];
 
   try {
@@ -50,6 +70,13 @@ export async function runAgentTurn(
         sessionId = msg.session_id;
         if (msg.subtype === "success") {
           replyText = msg.result;
+          structuredOutput = msg.structured_output;
+          usage = {
+            durationMs: msg.duration_ms,
+            inputTokens: msg.usage.input_tokens,
+            outputTokens: msg.usage.output_tokens,
+            totalCostUsd: msg.total_cost_usd,
+          };
         } else {
           isError = true;
           replyText = msg.errors?.join("\n") || `Agent run failed (${msg.subtype}).`;
@@ -65,7 +92,7 @@ export async function runAgentTurn(
     replyText = err instanceof Error ? err.message : String(err);
   }
 
-  return { sessionId, replyText, toolCalls, isError };
+  return { sessionId, replyText, toolCalls, isError, structuredOutput, usage };
 }
 
 /** Pulls the first fenced code block of the given language out of a reply, if present. */

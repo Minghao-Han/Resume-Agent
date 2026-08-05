@@ -22,11 +22,19 @@ type RoundResponse = {
   isError: boolean;
 };
 
+type GenerateUsage = {
+  durationMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalCostUsd: number;
+};
+
 type GenerateResponse = {
   sessionId?: string;
   rounds: RoundResponse[];
   bestIndex: number;
   isError?: boolean;
+  usage: GenerateUsage;
 };
 
 /** Pushes every round as its own assistant message — auto-correction rounds
@@ -41,7 +49,8 @@ function applyGenerateResponse(
   setSessionId: (id: string | undefined) => void,
   setTypstSource: (s: string) => void,
   setCompany: (c: string) => void,
-  setTargetRole: (r: string) => void
+  setTargetRole: (r: string) => void,
+  setUsage: (u: GenerateUsage) => void
 ) {
   setSessionId(data.sessionId ?? fallbackSessionId);
   setMessages((m) => [
@@ -56,6 +65,7 @@ function applyGenerateResponse(
   if (best.typstSource) setTypstSource(best.typstSource);
   if (best.company) setCompany(best.company);
   if (best.role) setTargetRole(best.role);
+  setUsage(data.usage);
 }
 
 export default function GeneratePage() {
@@ -70,6 +80,7 @@ export default function GeneratePage() {
   const [label, setLabel] = useState("");
   const [company, setCompany] = useState("");
   const [targetRole, setTargetRole] = useState("");
+  const [usage, setUsage] = useState<GenerateUsage | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedTypstSnapshot, setSavedTypstSnapshot] = useState("");
 
@@ -95,7 +106,7 @@ export default function GeneratePage() {
         templateId,
       });
       setMessages([{ role: "user", content: looksLikeUrl(jdText) ? `JD URL: ${jdText}` : `JD:\n${jdText}` }]);
-      applyGenerateResponse(data, undefined, setMessages, setSessionId, setTypstSource, setCompany, setTargetRole);
+      applyGenerateResponse(data, undefined, setMessages, setSessionId, setTypstSource, setCompany, setTargetRole, setUsage);
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "生成失败，请重试");
     } finally {
@@ -109,7 +120,7 @@ export default function GeneratePage() {
     setGenerating(true);
     try {
       const data = await apiPost<GenerateResponse>("/api/resume/generate", { sessionId, message: text, templateId });
-      applyGenerateResponse(data, sessionId, setMessages, setSessionId, setTypstSource, setCompany, setTargetRole);
+      applyGenerateResponse(data, sessionId, setMessages, setSessionId, setTypstSource, setCompany, setTargetRole, setUsage);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "出错了，请重试";
       toast(message);
@@ -221,6 +232,13 @@ export default function GeneratePage() {
         {(company || targetRole) && (
           <div className="text-xs text-neutral-500">
             识别到目标：{company || "（未知公司）"} · {targetRole || "（未知岗位）"}
+          </div>
+        )}
+        {usage && (
+          <div className="text-xs text-neutral-500">
+            本次生成耗时 {(usage.durationMs / 1000).toFixed(1)} 秒 · tokens 输入 {usage.inputTokens.toLocaleString()} / 输出{" "}
+            {usage.outputTokens.toLocaleString()}
+            {usage.totalCostUsd > 0 && ` · 约 $${usage.totalCostUsd.toFixed(4)}`}
           </div>
         )}
         <div className="flex items-center gap-2">

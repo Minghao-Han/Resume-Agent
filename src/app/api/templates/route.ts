@@ -1,8 +1,7 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { errorResponse } from "@/lib/apiError";
-import { runAndStoreCalibration } from "@/lib/agent/templateCalibration";
 
 export async function GET() {
   try {
@@ -25,8 +24,10 @@ export async function POST(request: Request) {
     if (body.isDefault) {
       await prisma.resumeTemplate.updateMany({ data: { isDefault: false } });
     }
+    // No calibration trigger here — a fresh template has no char_range yet;
+    // the user runs "分析模板" (POST /api/templates/:id/analyze) explicitly
+    // when they want one, rather than every save silently paying for it.
     const created = await prisma.resumeTemplate.create({ data: body });
-    after(() => runAndStoreCalibration(created.id, created.typstSource));
     return NextResponse.json(created);
   } catch (err) {
     return errorResponse(err);

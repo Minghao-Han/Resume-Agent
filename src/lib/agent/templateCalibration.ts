@@ -1,214 +1,223 @@
 import { prisma } from "@/lib/db";
-import { runAgentTurn, extractAllFencedBlocks } from "./core";
-import { sanitizeTemplateSource } from "./templateSanitize";
-import { sanitizeGeneratedTypst } from "./typstOutput";
-import { measureAutoHeight, measureRealPageHeight } from "./typstServerCompile";
+import { startResumeGeneration, type ExperienceForPrompt, type PersonalInfoForPrompt } from "./resumeGen";
+import { runConvergenceLoop, MIN_FILL_RATIO } from "./autoConverge";
+import { measureRealPageHeight } from "./typstServerCompile";
+import { narrowRange, type CharRange } from "./charRange";
+
+export type { CharRange } from "./charRange";
 
 export type TemplateCalibration = {
-  intercept: number;
-  perEntry: number;
-  perBullet: number;
-  perChar: number;
+  charRangeLow: number | null;
+  charRangeHigh: number | null;
   realPageHeightPt: number;
   calibratedAt: string;
 };
 
-// A deliberately non-collinear set of (entries, bulletsPerEntry, charsPerBullet)
-// combinations — varying entries and bullets-per-entry independently, and
-// spreading totalBullets/totalChars unevenly across them, so the 4-unknown
-// OLS fit below isn't solving a near-singular system.
-// charsPerBullet deliberately spans a wide range (40-220) so bullets clearly
-// cross multiple line-wrap thresholds (a narrower band risks most variants
-// landing on the same wrapped-line-count, starving the per-char term of
-// real signal and letting OLS noise assign it an implausible sign).
-const VARIANT_SPECS = [
-  { entries: 1, bulletsPerEntry: 2, charsPerBullet: 40 },
-  { entries: 2, bulletsPerEntry: 2, charsPerBullet: 100 },
-  { entries: 2, bulletsPerEntry: 4, charsPerBullet: 70 },
-  { entries: 3, bulletsPerEntry: 2, charsPerBullet: 180 },
-  { entries: 3, bulletsPerEntry: 4, charsPerBullet: 130 },
-  { entries: 4, bulletsPerEntry: 3, charsPerBullet: 220 },
-  { entries: 4, bulletsPerEntry: 5, charsPerBullet: 60 },
-  { entries: 5, bulletsPerEntry: 3, charsPerBullet: 150 },
+const FAKE_PERSONAL_INFO: PersonalInfoForPrompt = {
+  name: "Analysis Placeholder",
+  phone: "000-000-0000",
+  email: "placeholder@example.com",
+  location: "Remote",
+  github: "",
+  linkedin: "",
+  educations: [
+    {
+      school: "Analysis University",
+      degree: "Bachelor of Science",
+      major: "Computer Science",
+      startDate: "2018",
+      endDate: "2022",
+      region: "",
+      relevantCourses: "Algorithms, Systems, Databases",
+      gpa: "",
+    },
+  ],
+};
+
+function fakeHighlight(id: string, title: string, bullet: string, tags: string[]) {
+  return { id, title, situation: "", task: "", action: "", result: "", quantify: "", resumeBullet: bullet, tags };
+}
+
+// Deliberately generic/placeholder content, not real experience — only used
+// to give the model real structural material to select from and expand/trim
+// while probing a template's char-count capacity. Rich enough (4 entries,
+// ~11 highlights) that the model can plausibly produce anywhere from a very
+// short resume to one that overflows two pages, without needing to invent
+// anything beyond what's here.
+const FAKE_EXPERIENCES: ExperienceForPrompt[] = [
+  {
+    id: "fake-1",
+    title: "Software Engineer",
+    org: "Example Corp",
+    type: "intern",
+    startDate: "2023-06",
+    endDate: "2023-08",
+    location: "",
+    highlights: [
+      fakeHighlight(
+        "f1a",
+        "Backend service",
+        "Built and shipped a backend service handling authenticated API requests against a relational database, improving reliability and reducing response latency for downstream clients.",
+        ["backend"]
+      ),
+      fakeHighlight(
+        "f1b",
+        "Monitoring",
+        "Instrumented request logging and built dashboards tracking error rates, enabling faster incident triage across the team.",
+        ["observability"]
+      ),
+      fakeHighlight(
+        "f1c",
+        "Testing",
+        "Wrote integration tests covering critical API paths, catching regressions before deployment and reducing production incidents.",
+        ["quality"]
+      ),
+    ],
+  },
+  {
+    id: "fake-2",
+    title: "Software Engineering Intern",
+    org: "Sample Inc.",
+    type: "intern",
+    startDate: "2022-06",
+    endDate: "2022-08",
+    location: "",
+    highlights: [
+      fakeHighlight(
+        "f2a",
+        "Frontend feature",
+        "Implemented a user-facing dashboard feature with a modern frontend framework, coordinating with design to deliver a responsive, accessible interface.",
+        ["frontend"]
+      ),
+      fakeHighlight(
+        "f2b",
+        "Performance",
+        "Profiled and optimized a slow page-load path, cutting load time meaningfully and improving user-reported satisfaction.",
+        ["performance"]
+      ),
+      fakeHighlight(
+        "f2c",
+        "Accessibility",
+        "Audited key user flows against accessibility guidelines and fixed the gaps found, bringing the product closer to compliance.",
+        ["accessibility"]
+      ),
+    ],
+  },
+  {
+    id: "fake-3",
+    title: "Distributed Queue Service",
+    org: "Independent",
+    type: "project",
+    startDate: "2021-09",
+    endDate: "2022-01",
+    location: "",
+    highlights: [
+      fakeHighlight(
+        "f3a",
+        "System design",
+        "Designed and built a small distributed system from scratch, handling concurrent requests through a queue-based architecture.",
+        ["distributed systems"]
+      ),
+      fakeHighlight(
+        "f3b",
+        "Deployment",
+        "Deployed the system to a cloud provider with a basic CI/CD pipeline, automating what had been a manual release process.",
+        ["devops"]
+      ),
+      fakeHighlight(
+        "f3c",
+        "Documentation",
+        "Wrote developer documentation and a contribution guide, lowering the barrier for others to extend the project.",
+        ["documentation"]
+      ),
+    ],
+  },
+  {
+    id: "fake-4",
+    title: "Data Pipeline Tooling",
+    org: "Independent",
+    type: "project",
+    startDate: "2020-06",
+    endDate: "2020-12",
+    location: "",
+    highlights: [
+      fakeHighlight(
+        "f4a",
+        "Pipeline",
+        "Built a data pipeline tool that automated a previously manual weekly export process, saving hours of repetitive work each cycle.",
+        ["data engineering"]
+      ),
+      fakeHighlight(
+        "f4b",
+        "Reliability",
+        "Added retry and alerting logic to the pipeline after a silent failure went unnoticed for days, preventing repeat incidents.",
+        ["reliability"]
+      ),
+    ],
+  },
 ];
 
-const FILLER_TEXT =
-  "Independently designed and implemented a scalable backend service integrating multiple " +
-  "third party systems while maintaining strict data consistency and comprehensive automated " +
-  "test coverage across the entire distributed architecture and deployment pipeline";
-
-const SYSTEM_PROMPT = `You produce synthetic calibration variants of a resume Typst template for a resume-building tool — NOT a real resume, just structurally-correct filler used to measure how much vertical space this template's own entry/bullet formatting takes up.
-
-You will be given a Typst template (style/layout reference, same rules as normal resume generation: keep any \`#import "@preview/...": *\` line unchanged, call the template's own functions like \`resume.with(...)\`/\`edu(...)\`/\`work(...)\`/\`project(...)\` exactly as it does, never redefine them or invent your own styling) and a numbered list of variants to produce.
-
-For EACH variant, in order, output ONE complete, compilable Typst document as its own fenced code block tagged \`\`\`typst — nothing else between blocks, no explanations, no numbering text outside the code blocks. Each document must:
-- Use plausible fake placeholder personal info (any name/email, doesn't need to be realistic) so the header renders normally — accuracy doesn't matter here.
-- Include a short Education section (one entry) and a Skills section (one line) exactly like a normal resume, unchanged across all variants — only the Experience section should vary per variant.
-- In the Experience section, create exactly the given number of entries, each with exactly the given number of bullets, and for EVERY bullet use EXACTLY this filler text truncated to the given character count (do not paraphrase, do not write real content, use it verbatim character-for-character up to the length given): "${FILLER_TEXT}"
-
-Output exactly ${VARIANT_SPECS.length} fenced \`\`\`typst blocks, one per variant, in the given order. Nothing else.`;
-
-function buildCalibrationPrompt(templateSource: string): string {
-  const cleanedTemplate = sanitizeTemplateSource(templateSource, {
-    name: "",
-    phone: "",
-    email: "",
-    location: "",
-    github: "",
-    linkedin: "",
-    educations: [],
-  });
-
-  const variantLines = VARIANT_SPECS.map((v, i) => {
-    const totalBullets = v.entries * v.bulletsPerEntry;
-    return `Variant ${i + 1}: ${v.entries} experience entries, ${v.bulletsPerEntry} bullets per entry (${totalBullets} bullets total), each bullet's filler text truncated to exactly ${v.charsPerBullet} characters.`;
-  });
-
-  return [
-    `Typst template:\n\`\`\`typst\n${cleanedTemplate}\n\`\`\``,
-    `\nVariants to produce, in order:`,
-    ...variantLines,
-    `\nProduce all ${VARIANT_SPECS.length} variants now.`,
-  ].join("\n");
-}
-
-function countChars(bulletText: string): number {
-  return bulletText.length;
-}
+const FAKE_JD = `Generic Software Engineer role. We're looking for someone with solid full-stack fundamentals, experience shipping real features end-to-end, and good engineering judgment across backend, frontend, and infrastructure work. Any relevant background is a plus.`;
 
 /**
- * Runs one LLM turn to get structurally-valid calibration variants for a
- * template, compiles each with a height:auto override to measure real
- * content height, and fits a linear model `height ~ entries + bullets +
- * chars` via ordinary least squares (closed-form, no ML dependency).
- * Returns null if too few variants compiled successfully to fit (need at
- * least 4 for the 4-unknown system) or the fit is degenerate.
+ * Cold-start / refresh calibration: generates one resume with fake
+ * placeholder data through the real generation pipeline, runs it through
+ * the same fill/shorten convergence loop used in production, and narrows
+ * the char-count range using every round's real sample (not just the last
+ * one) — reusing `existingRange` as the starting point so repeated calls
+ * refine rather than reset.
  */
-export async function calibrateTemplate(templateSource: string): Promise<TemplateCalibration | null> {
-  const prompt = buildCalibrationPrompt(templateSource);
-
-  const { replyText, isError } = await runAgentTurn(prompt, {
-    systemPrompt: SYSTEM_PROMPT,
-    tools: [],
-    allowedTools: [],
-    settingSources: [],
-    settings: { autoMemoryEnabled: false },
-    permissionMode: "default",
-  });
-
-  if (isError) return null;
-
-  const blocks = extractAllFencedBlocks(replyText, "typst").map(sanitizeGeneratedTypst);
-  if (blocks.length === 0) return null;
-
-  const points: { entries: number; bullets: number; chars: number; height: number }[] = [];
-  for (let i = 0; i < Math.min(blocks.length, VARIANT_SPECS.length); i++) {
-    const spec = VARIANT_SPECS[i];
-    const height = await measureAutoHeight(blocks[i]);
-    if (height === null) continue;
-    points.push({
-      entries: spec.entries,
-      bullets: spec.entries * spec.bulletsPerEntry,
-      chars: spec.entries * spec.bulletsPerEntry * countChars(FILLER_TEXT.slice(0, spec.charsPerBullet)),
-      height,
-    });
-  }
-
-  if (points.length < 4) return null;
-
+export async function analyzeTemplate(
+  templateSource: string,
+  existingRange: CharRange = { low: null, high: null }
+): Promise<TemplateCalibration | null> {
   const realPageHeightPt = await measureRealPageHeight(templateSource);
   if (realPageHeightPt === null) return null;
 
-  const fit = fitLinearModel(points);
-  if (!fit || !isPlausibleFit(fit, realPageHeightPt)) return null;
+  const seedCalibration: TemplateCalibration | null =
+    existingRange.low !== null || existingRange.high !== null
+      ? { charRangeLow: existingRange.low, charRangeHigh: existingRange.high, realPageHeightPt, calibratedAt: "" }
+      : null;
+
+  const first = await startResumeGeneration({
+    jdText: FAKE_JD,
+    jdIsUrl: false,
+    personalInfo: FAKE_PERSONAL_INFO,
+    experiences: FAKE_EXPERIENCES,
+    templateSource,
+    calibration: seedCalibration,
+  });
+
+  if (first.isError || !first.typstSource) return null;
+
+  const { fits } = await runConvergenceLoop(first, realPageHeightPt);
+
+  let range = existingRange;
+  for (const fit of fits) {
+    range = narrowRange(range, fit, MIN_FILL_RATIO);
+  }
 
   return {
-    ...fit,
+    charRangeLow: range.low,
+    charRangeHigh: range.high,
     realPageHeightPt,
     calibratedAt: new Date().toISOString(),
   };
 }
 
-/**
- * Runs calibration and persists the result — meant to run inside `after()`
- * so the template-save request doesn't wait on it. Best-effort: any failure
- * (LLM error, singular fit, compile failure) just leaves `calibration` at
- * its previous value (null on first save), which generation already treats
- * as "no budget hint available" rather than an error.
- */
-export async function runAndStoreCalibration(templateId: string, typstSource: string): Promise<void> {
-  try {
-    const calibration = await calibrateTemplate(typstSource);
-    if (!calibration) return;
-    await prisma.resumeTemplate.update({
-      where: { id: templateId },
-      data: { calibration: JSON.stringify(calibration) },
-    });
-  } catch (err) {
-    console.error(`[templateCalibration] failed for template ${templateId}:`, err);
-  }
-}
+export async function analyzeAndStoreTemplate(templateId: string, templateSource: string): Promise<TemplateCalibration | null> {
+  const existing = await prisma.resumeTemplate.findUnique({ where: { id: templateId }, select: { calibration: true } });
+  const existingCalibration: TemplateCalibration | null = existing?.calibration ? JSON.parse(existing.calibration) : null;
+  const existingRange: CharRange = existingCalibration
+    ? { low: existingCalibration.charRangeLow, high: existingCalibration.charRangeHigh }
+    : { low: null, high: null };
 
-/**
- * OLS has no notion of physical plausibility — more entries/bullets/chars
- * can never make a document shorter, and the base (zero-content) height
- * can't be negative or exceed a full page. Reject fits that violate these
- * even though the regression "succeeded" numerically; downstream treats a
- * null calibration as a safe no-op rather than acting on a nonsensical one.
- */
-function isPlausibleFit(
-  fit: { intercept: number; perEntry: number; perBullet: number; perChar: number },
-  realPageHeightPt: number
-): boolean {
-  return (
-    fit.intercept >= 0 &&
-    fit.intercept < realPageHeightPt &&
-    fit.perEntry >= 0 &&
-    fit.perBullet >= 0 &&
-    fit.perChar >= 0
-  );
-}
+  const calibration = await analyzeTemplate(templateSource, existingRange);
+  if (!calibration) return null;
 
-function fitLinearModel(
-  points: { entries: number; bullets: number; chars: number; height: number }[]
-): { intercept: number; perEntry: number; perBullet: number; perChar: number } | null {
-  const n = 4;
-  const XtX: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
-  const Xty: number[] = new Array(n).fill(0);
-
-  for (const p of points) {
-    const row = [1, p.entries, p.bullets, p.chars];
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) XtX[i][j] += row[i] * row[j];
-      Xty[i] += row[i] * p.height;
-    }
-  }
-
-  const solved = solveLinearSystem(XtX, Xty);
-  if (!solved) return null;
-  return { intercept: solved[0], perEntry: solved[1], perBullet: solved[2], perChar: solved[3] };
-}
-
-/** Gauss-Jordan elimination with partial pivoting. Returns null if the system is singular (calibration points too collinear). */
-function solveLinearSystem(A: number[][], b: number[]): number[] | null {
-  const n = b.length;
-  const M = A.map((row, i) => [...row, b[i]]);
-
-  for (let col = 0; col < n; col++) {
-    let pivotRow = col;
-    for (let r = col + 1; r < n; r++) {
-      if (Math.abs(M[r][col]) > Math.abs(M[pivotRow][col])) pivotRow = r;
-    }
-    [M[col], M[pivotRow]] = [M[pivotRow], M[col]];
-    const pivotVal = M[col][col];
-    if (Math.abs(pivotVal) < 1e-9) return null;
-    for (let j = col; j <= n; j++) M[col][j] /= pivotVal;
-    for (let r = 0; r < n; r++) {
-      if (r === col) continue;
-      const factor = M[r][col];
-      for (let j = col; j <= n; j++) M[r][j] -= factor * M[col][j];
-    }
-  }
-
-  return M.map((row) => row[n]);
+  await prisma.resumeTemplate.update({
+    where: { id: templateId },
+    data: { calibration: JSON.stringify(calibration) },
+  });
+  return calibration;
 }
