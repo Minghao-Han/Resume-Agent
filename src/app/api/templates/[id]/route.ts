@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { errorResponse } from "@/lib/apiError";
+import { runAndStoreCalibration } from "@/lib/agent/templateCalibration";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -26,10 +27,21 @@ export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = updateSchema.parse(await request.json());
+    const existing = await prisma.resumeTemplate.findUnique({ where: { id } });
     if (body.isDefault) {
       await prisma.resumeTemplate.updateMany({ data: { isDefault: false } });
     }
-    const updated = await prisma.resumeTemplate.update({ where: { id }, data: body });
+    const sourceChanged = existing?.typstSource !== body.typstSource;
+    const updated = await prisma.resumeTemplate.update({
+      where: { id },
+      // A plain rename shouldn't invalidate a perfectly good existing
+      // calibration — only clear it (pending recalibration below) when the
+      // actual Typst source changed.
+      data: sourceChanged ? { ...body, calibration: null } : body,
+    });
+    if (sourceChanged) {
+      after(() => runAndStoreCalibration(updated.id, updated.typstSource));
+    }
     return NextResponse.json(updated);
   } catch (err) {
     return errorResponse(err);

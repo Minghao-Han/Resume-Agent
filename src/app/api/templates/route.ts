@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { errorResponse } from "@/lib/apiError";
+import { runAndStoreCalibration } from "@/lib/agent/templateCalibration";
 
 export async function GET() {
   try {
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
       await prisma.resumeTemplate.updateMany({ data: { isDefault: false } });
     }
     const created = await prisma.resumeTemplate.create({ data: body });
+    after(() => runAndStoreCalibration(created.id, created.typstSource));
     return NextResponse.json(created);
   } catch (err) {
     return errorResponse(err);

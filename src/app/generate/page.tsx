@@ -14,6 +14,50 @@ function looksLikeUrl(text: string) {
   return /^https?:\/\//i.test(text.trim());
 }
 
+type RoundResponse = {
+  reply: string;
+  typstSource: string | null;
+  company: string;
+  role: string;
+  isError: boolean;
+};
+
+type GenerateResponse = {
+  sessionId?: string;
+  rounds: RoundResponse[];
+  bestIndex: number;
+  isError?: boolean;
+};
+
+/** Pushes every round as its own assistant message — auto-correction rounds
+ * (anything past the first) are prefixed so it's clear they weren't asked
+ * for directly, then applies the BEST round's content, which isn't always
+ * the last one (an auto-correction can overshoot past a better earlier
+ * attempt — see autoConverge.ts). */
+function applyGenerateResponse(
+  data: GenerateResponse,
+  fallbackSessionId: string | undefined,
+  setMessages: (fn: (m: ChatMessage[]) => ChatMessage[]) => void,
+  setSessionId: (id: string | undefined) => void,
+  setTypstSource: (s: string) => void,
+  setCompany: (c: string) => void,
+  setTargetRole: (r: string) => void
+) {
+  setSessionId(data.sessionId ?? fallbackSessionId);
+  setMessages((m) => [
+    ...m,
+    ...data.rounds.map((r, i) => ({
+      role: "assistant" as const,
+      content: i === 0 ? r.reply : `自动调整：${r.reply}`,
+    })),
+  ]);
+  const best = data.rounds[data.bestIndex];
+  if (best.isError) toast(best.reply);
+  if (best.typstSource) setTypstSource(best.typstSource);
+  if (best.company) setCompany(best.company);
+  if (best.role) setTargetRole(best.role);
+}
+
 export default function GeneratePage() {
   const [jdText, setJdText] = useState("");
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
@@ -45,23 +89,13 @@ export default function GeneratePage() {
     if (isDirty && !confirm(UNSAVED_CHANGES_MESSAGE)) return;
     setGenerating(true);
     try {
-      const data = await apiPost<{
-        sessionId?: string;
-        reply: string;
-        typstSource: string | null;
-        company?: string;
-        role?: string;
-        isError?: boolean;
-      }>("/api/resume/generate", { jdText, jdIsUrl: looksLikeUrl(jdText), templateId });
-      if (data.isError) toast(data.reply);
-      setSessionId(data.sessionId);
-      setMessages([
-        { role: "user", content: looksLikeUrl(jdText) ? `JD URL: ${jdText}` : `JD:\n${jdText}` },
-        { role: "assistant", content: data.reply },
-      ]);
-      if (data.typstSource) setTypstSource(data.typstSource);
-      if (data.company) setCompany(data.company);
-      if (data.role) setTargetRole(data.role);
+      const data = await apiPost<GenerateResponse>("/api/resume/generate", {
+        jdText,
+        jdIsUrl: looksLikeUrl(jdText),
+        templateId,
+      });
+      setMessages([{ role: "user", content: looksLikeUrl(jdText) ? `JD URL: ${jdText}` : `JD:\n${jdText}` }]);
+      applyGenerateResponse(data, undefined, setMessages, setSessionId, setTypstSource, setCompany, setTargetRole);
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "生成失败，请重试");
     } finally {
@@ -74,20 +108,8 @@ export default function GeneratePage() {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setGenerating(true);
     try {
-      const data = await apiPost<{
-        sessionId?: string;
-        reply: string;
-        typstSource: string | null;
-        company?: string;
-        role?: string;
-        isError?: boolean;
-      }>("/api/resume/generate", { sessionId, message: text });
-      if (data.isError) toast(data.reply);
-      setSessionId(data.sessionId ?? sessionId);
-      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
-      if (data.typstSource) setTypstSource(data.typstSource);
-      if (data.company) setCompany(data.company);
-      if (data.role) setTargetRole(data.role);
+      const data = await apiPost<GenerateResponse>("/api/resume/generate", { sessionId, message: text, templateId });
+      applyGenerateResponse(data, sessionId, setMessages, setSessionId, setTypstSource, setCompany, setTargetRole);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "出错了，请重试";
       toast(message);

@@ -74,3 +74,9 @@ export function extractFencedBlock(text: string, lang: string): string | null {
   const match = text.match(re);
   return match ? match[1].trim() : null;
 }
+
+/** Like extractFencedBlock, but returns every match — e.g. several labeled calibration variants in one reply. */
+export function extractAllFencedBlocks(text: string, lang: string): string[] {
+  const re = new RegExp("```" + lang + "\\n([\\s\\S]*?)```", "gi");
+  return [...text.matchAll(re)].map((m) => m[1].trim());
+}

@@ -1,7 +1,9 @@
 /** Marks, for each index in `source`, whether that character sits inside a
  * Typst string literal or comment (as opposed to real markup/code) — used
- * by every fix below to avoid touching string/comment content. */
-function computeCodeMask(source: string): boolean[] {
+ * by every fix below to avoid touching string/comment content. Also reused
+ * by typstServerCompile.ts to find the boundary between a template's
+ * declarations and its real body content. */
+export function computeCodeMask(source: string): boolean[] {
   const mask = new Array<boolean>(source.length).fill(true);
   let inString = false;
   let inLineComment = false;

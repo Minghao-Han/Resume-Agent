@@ -1,6 +1,7 @@
 import { runAgentTurn, extractFencedBlock, PROJECT_ROOT } from "./core";
 import { sanitizeTemplateSource } from "./templateSanitize";
 import { sanitizeGeneratedTypst } from "./typstOutput";
+import type { TemplateCalibration } from "./templateCalibration";
 
 // Scoped to just this app's own resume-writing skills (not the user's
 // personal/global skills or Claude Code's bundled ones, which are irrelevant
@@ -74,15 +75,38 @@ If told the compiled output is more than one page, cut content (shorten bullets,
 
 You have Skill access to this project's own resume-writing skills (resume-content-and-jd-reading, resume-one-page-fitting, resume-generation) — consult them for how to select/prioritize highlights against the JD, how to fit content onto one page, and how to apply bold formatting. Follow their guidance over your own general instincts when they conflict.`;
 
+/**
+ * Rough pre-generation sizing hint from a template's calibration (see
+ * templateCalibration.ts): solves the fitted linear model for how many total
+ * bullet characters would fill the page given a typical entry/bullet count,
+ * so the model has *some* size target before writing anything — not a rule,
+ * just an initial guess the post-generation auto-convergence loop (see
+ * autoConverge.ts) corrects for afterward regardless of how close this is.
+ */
+function estimateCharBudget(calibration: TemplateCalibration, availableExperienceCount: number): number | null {
+  if (calibration.perChar <= 0) return null;
+  const entries = Math.min(Math.max(availableExperienceCount, 1), 4);
+  const bulletsPerEntry = 3;
+  const bullets = entries * bulletsPerEntry;
+  const remaining =
+    calibration.realPageHeightPt - calibration.intercept - calibration.perEntry * entries - calibration.perBullet * bullets;
+  if (remaining <= 0) return null;
+  return Math.round(remaining / calibration.perChar);
+}
+
 function buildInitialPrompt(params: {
   jdText: string;
   jdIsUrl: boolean;
   personalInfo: PersonalInfoForPrompt;
   experiences: ExperienceForPrompt[];
   templateSource: string;
+  calibration?: TemplateCalibration | null;
 }): string {
-  const { jdText, jdIsUrl, personalInfo, experiences, templateSource } = params;
+  const { jdText, jdIsUrl, personalInfo, experiences, templateSource, calibration } = params;
   const cleanedTemplate = sanitizeTemplateSource(templateSource, personalInfo);
+  const availableExperienceCount = experiences.filter((e) => e.highlights.length > 0).length;
+  const charBudget = calibration ? estimateCharBudget(calibration, availableExperienceCount) : null;
+
   return [
     jdIsUrl
       ? `Job description URL (fetch it with WebFetch first): ${jdText}`
@@ -90,6 +114,9 @@ function buildInitialPrompt(params: {
     `\nPersonal info (JSON):\n${JSON.stringify(personalInfo, null, 2)}`,
     `\nExperience library (JSON, each with one or more STAR-Q'd highlights):\n${JSON.stringify(experiences, null, 2)}`,
     `\nTypst template — use it as-is, adding your tailored content via its existing structure/functions. Any \`#let name/email/phone/location = ...\` bindings have already been rewritten to match the Personal info above (or blanked if not provided) — keep them as-is, don't restore whatever the template originally had. If it has an \`#import "@preview/...": *\` line, keep it unchanged and call the functions it provides exactly as the template does:\n\`\`\`typst\n${cleanedTemplate}\n\`\`\``,
+    charBudget
+      ? `\nRough sizing guide (not a rule): based on this template's real layout, roughly ${charBudget} total characters of bullet content across the highlights you select would closely fill one page. Weigh this alongside actual JD-relevance when choosing how many highlights/bullets to include — relevance still decides which ones, this is only a size target.`
+      : "",
     `\nGenerate the tailored one-page resume now.`,
   ].join("\n");
 }
@@ -117,6 +144,7 @@ export async function startResumeGeneration(params: {
   personalInfo: PersonalInfoForPrompt;
   experiences: ExperienceForPrompt[];
   templateSource: string;
+  calibration?: TemplateCalibration | null;
 }): Promise<{
   sessionId: string | undefined;
   reply: string;
