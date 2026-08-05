@@ -33,10 +33,15 @@ export async function GET(_request: Request, { params }: RouteParams) {
     if (!resume?.pdfPath) return NextResponse.json({ error: "not found" }, { status: 404 });
 
     const bytes = await readFile(resume.pdfPath);
+    // Always a fixed ASCII filename — the label is often Chinese ("简历
+    // 2026/8/5 16:05:06"), and Content-Disposition's filename="..." must be
+    // a valid HTTP header value (Latin-1/ByteString only); a non-ASCII label
+    // used directly here throws "Cannot convert argument to a ByteString"
+    // and 500s the whole download.
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${resume.label.replace(/["\n]/g, "")}.pdf"`,
+        "Content-Disposition": `attachment; filename="resume.pdf"`,
       },
     });
   } catch (err) {

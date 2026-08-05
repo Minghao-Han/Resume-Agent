@@ -76,7 +76,7 @@ export default function ResumesPage() {
                 <a
                   className="btn-secondary"
                   href={`/api/resumes/${r.id}/pdf`}
-                  download={`${r.label}.pdf`}
+                  download="resume.pdf"
                   aria-disabled={!r.pdfPath}
                 >
                   下载

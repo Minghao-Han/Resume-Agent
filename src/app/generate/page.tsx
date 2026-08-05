@@ -175,7 +175,7 @@ export default function GeneratePage() {
 
   async function download() {
     const pdfBytes = await compileTypstPdf(typstSource);
-    downloadPdfBytes(pdfBytes, `${label || "resume"}.pdf`);
+    downloadPdfBytes(pdfBytes, "resume.pdf");
   }
 
   return (
