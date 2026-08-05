@@ -7,21 +7,44 @@ export type CharRange = { low: number | null; high: number | null };
 
 type FitLike = { pageCount: number; charCount: number | null; fillRatio: number | null };
 
+// How far apart to force low/high back apart when a new sample contradicts
+// the existing opposite bound (see narrowRange) — char count isn't a
+// perfectly deterministic proxy for height (real content vs. calibration
+// filler can disagree at the same char count), so this can genuinely happen.
+const RESET_WINDOW = 100;
+
 /**
  * Narrows a template's known-good char-count range using one real sample.
  * `low` is the largest char count known to underfill (the sweet spot is
  * above it); `high` is the smallest char count known to overflow (the sweet
  * spot is below it) — a sample inside the acceptable fill band narrows
  * neither, since it isn't a boundary observation.
+ *
+ * If the new sample would invert the range (the fresher bound crosses past
+ * the stale opposite one), trust the fresher sample and collapse to a tight
+ * window right at it, discarding the now-contradicted stale bound rather
+ * than leaving low > high sitting around.
  */
 export function narrowRange(range: CharRange, fit: FitLike, minFillRatio: number): CharRange {
   if (fit.charCount === null || fit.pageCount === 0) return range;
-  let { low, high } = range;
+  const { low, high } = range;
+
   if (fit.pageCount !== 1) {
-    high = high === null ? fit.charCount : Math.min(high, fit.charCount);
-  } else if (fit.fillRatio !== null && fit.fillRatio < minFillRatio) {
-    low = low === null ? fit.charCount : Math.max(low, fit.charCount);
+    const newHigh = high === null ? fit.charCount : Math.min(high, fit.charCount);
+    if (low !== null && newHigh < low) {
+      return { low: newHigh - RESET_WINDOW, high: newHigh };
+    }
+    return { low, high: newHigh };
   }
+
+  if (fit.fillRatio !== null && fit.fillRatio < minFillRatio) {
+    const newLow = low === null ? fit.charCount : Math.max(low, fit.charCount);
+    if (high !== null && newLow > high) {
+      return { low: newLow, high: newLow + RESET_WINDOW };
+    }
+    return { low: newLow, high };
+  }
+
   return { low, high };
 }
 
