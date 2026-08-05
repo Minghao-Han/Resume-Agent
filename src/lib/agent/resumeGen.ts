@@ -116,6 +116,8 @@ CRITICAL — Typst escaping: an unescaped "@" followed by a letter/digit (e.g. "
 
 CRITICAL — Typst interpolation: never write a bare variable interpolation immediately touching an underscore on either side, e.g. \`_#degree_\` to italicize a value — "_" is a valid identifier character in Typst, so \`#degree_\` parses as a reference to a variable literally named "degree_" and swallows the underscore meant to close the emphasis, causing "unclosed delimiter". Always parenthesize the interpolation in that situation: write \`_#(degree)_\` instead.
 
+CRITICAL — Typst bold syntax: to bold text, wrap it in a SINGLE asterisk on each side — \`*bold text*\` — never Markdown's double asterisk (\`**bold text**\`). Typst silently parses \`**text**\` as two empty emphasis toggles around plain, non-bold text — no compile error, no visible sign anything is wrong, just bold that quietly never renders. This applies everywhere you bold something, including the quantified results and JD-matching keywords the resume-generation skill tells you to bold.
+
 Output format (every single reply, including follow-up refinements): your response is returned as structured JSON with fields company, role, explanation, and typstSource — fill in company/role from the JD, explanation with 2-4 sentences on what you changed and why, and typstSource with the COMPLETE current resume Typst source (not a diff, not wrapped in markdown fences — the raw source text). Always include the full source in typstSource so the caller can always re-render from your latest reply alone.
 
 If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest experience) rather than shrinking font/margins below readable sizes.

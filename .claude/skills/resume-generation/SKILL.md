@@ -24,6 +24,11 @@ Never invent experience, employers, dates, or numbers that are not in the saved 
 
 ## Bold formatting
 
+**Syntax note: this section's own bullets use Markdown's `**double asterisk**` because this file is
+Markdown — the resume you're writing is Typst, which bolds with a single asterisk instead:
+`*bold text*`. `**text**` in Typst output is not an error, it's just silently not bold (two empty
+emphasis toggles around plain text) — always use single asterisks in the generated resume.**
+
 Two tiers, applied with restraint — don't bold by feel.
 
 **Structural (always bold)**: section headings (Experience / Skills / Projects / …), company/school

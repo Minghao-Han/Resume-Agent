@@ -148,6 +148,38 @@ function wrapAmbiguousUnderscoreInterpolation(source: string): string {
   return result;
 }
 
+/**
+ * Rewrites Markdown-style `**bold**` to Typst's actual strong-emphasis
+ * syntax, a single asterisk on each side (`*bold*`). Verified directly:
+ * Typst parses `**text**` as two back-to-back empty strong spans followed by
+ * plain "text" — it silently renders as ordinary, non-bold text with no
+ * compile error, so a model reaching for the (far more common, and the one
+ * used by this very skill file's own prose) Markdown convention produces a
+ * resume with none of its intended bold formatting and no visible signal
+ * anything went wrong. Relying on prompt instructions alone proved
+ * unreliable in testing (same failure mode as the other fixes in this
+ * file), so this is a deterministic safety net.
+ */
+function convertMarkdownBoldToTypst(source: string): string {
+  const mask = computeCodeMask(source);
+  const pattern = /\*\*([^*\n]+?)\*\*/g;
+  let result = "";
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(source))) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const isRealCode = mask.slice(start, end).every(Boolean);
+    result += source.slice(lastIndex, start);
+    result += isRealCode ? `*${match[1]}*` : match[0];
+    lastIndex = end;
+  }
+  result += source.slice(lastIndex);
+
+  return result;
+}
+
 export function sanitizeGeneratedTypst(source: string): string {
-  return wrapAmbiguousUnderscoreInterpolation(escapeStraySpecialChars(source));
+  return convertMarkdownBoldToTypst(wrapAmbiguousUnderscoreInterpolation(escapeStraySpecialChars(source)));
 }
