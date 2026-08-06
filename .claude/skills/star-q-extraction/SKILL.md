@@ -17,7 +17,11 @@ For each highlight, extract:
 - **Situation** — the context/problem, 1-2 sentences.
 - **Task** — what the user was specifically responsible for.
 - **Action** — what they actually did, concrete and specific (avoid vague verbs like "helped with").
-  If they weighed multiple approaches before choosing one, capture that reasoning.
+  If they weighed multiple approaches before choosing one, capture that reasoning. Default to framing
+  the action as individual work (e.g. "built," "designed," "implemented") unless the raw text
+  explicitly says it was a team effort — don't use words like "led" or "cooperated with" (or their
+  synonyms implying shared/managed credit) unless the user's text actually describes leading or
+  collaborating with others.
 - **Result** — the outcome, in plain language.
 - **Quantify** — the result restated with a number (%, time saved, scale, revenue, users, etc). If no
   number exists in the source text, ask the user for one instead of guessing.

@@ -13,8 +13,12 @@ template to use as a style reference:
 2. Select individual **highlights** (not whole experiences) whose tags/content best match — prefer
    quantified, relevant results over recency. An experience may contribute all, some, or none of its
    highlights; keep the highlights you do use grouped under their parent experience/org on the resume.
-3. Use each selected highlight's `resumeBullet` as the starting point, tightened further to fit the
-   page and the JD's language — don't paste the raw STAR-Q fields verbatim.
+3. Default to using each selected highlight's `resumeBullet` as-is. Only rewrite it from the
+   underlying STAR-Q fields (Situation/Task/Action/Result/Quantify) when the JD is specific/unusual
+   enough that the stored bullet doesn't speak to it — e.g. it needs a different emphasis, a JD
+   keyword the stored bullet omits, or it's too long to fit the page. Light tightening (trimming
+   words to fit the page) is fine either way, but don't rewrite wholesale by default, and never paste
+   the raw STAR-Q fields verbatim.
 4. Produce a complete, compilable Typst source (`.typ`) for the resume, following the structure/style
    of the provided template, that fits on **one page**.
 5. If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest
