@@ -26,7 +26,8 @@ For each highlight, extract:
 - **Quantify** — the result restated with a number (%, time saved, scale, revenue, users, etc). If no
   number exists in the source text, ask the user for one instead of guessing.
 - **Resume bullet** — one polished, resume-ready sentence synthesizing the above (not the raw fields
-  concatenated).
+  concatenated). Follow `resume-bullet-writing` for how to phrase it: strong verb, the
+  verb+what+how+result formula, quantification, and length.
 - **Tags** — 2-5 role tags (e.g. "backend", "security", "data science", "PM") this highlight is a
   strong fit for.
 

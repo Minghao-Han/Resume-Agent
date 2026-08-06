@@ -85,7 +85,11 @@ section-specific pre-filter:
 **Within a given section, the trimming method priority is:**
 
 1. **If the item is a bullet point → shorten the sentence first** (tighten
-   wording, cut filler, combine clauses) rather than deleting it outright.
+   wording, cut filler, combine clauses) rather than deleting it outright. Cut
+   words, don't rewrite from scratch — keep the verb, the result, and the
+   number from `resume-bullet-writing`'s formula intact; if a cut would remove
+   the quantified result rather than a filler word, that bullet is a deletion
+   candidate (step 2 below), not a shortening candidate.
 2. **If shortening isn't enough and the section is Experience specifically**:
    check how many bullets that experience entry currently has.
    - If it has **more than 2 bullets**, delete one bullet from it (delete the

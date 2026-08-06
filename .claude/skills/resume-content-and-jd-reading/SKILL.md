@@ -15,26 +15,14 @@ role" is a defensible judgment, not a guess.
 
 The single biggest lever separating a strong bullet from a weak one is whether
 it describes *what the person was responsible for* or *what changed because of
-them*. The often-cited contrast (originally from the Google resume guide,
-widely repeated in resume-writing communities):
-
-- **Responsibility-oriented** (weak): "Analyzed new markets and explored
-  potential entrance strategies for China division."
-- **Accomplishment-oriented** (strong): "Led entrance strategy for a product
-  in China, persuading leadership to refocus on the enterprise market —
-  resulting in a 7% increase in profits."
-
-Most people default to writing the responsibility-oriented version because
-that's how they experienced the work day to day — the fix isn't more detail,
-it's translating the same fact into "what changed" using a metric the target
-company would actually track (revenue, users, cost, latency, retention,
-error rate, etc., depending on the role).
+them*. See `resume-bullet-writing` for the full mechanics of this (the
+verb+what+how+result formula, quantification, an example) — the relevance to
+*this* skill is that outcome-orientation is also a content-judgment signal: a
+line that can't be rewritten in outcome terms (Part 2) is usually a cut
+candidate, not just a phrasing problem.
 
 ### What else reliably matters
 
-- **Quantified results over described effort.** "Improved user experience" is
-  weak; "raised satisfaction score from 7.5 to 9.0 through an interface
-  redesign" is strong — the number substitutes evidence for a claim.
 - **Industry/role-appropriate vocabulary.** Bullets read as more credible when
   they use the vocabulary insiders at that company/industry actually use for
   that role — this is also part of why JD reading (Part 2) matters: the JD
@@ -46,7 +34,8 @@ error rate, etc., depending on the role).
 - **Internal consistency.** After drafting, a self-review pass should check
   for repeated sentence structure/verbs across bullets (a common tell that
   bullets were written all at once as "what happened" rather than each
-  independently justified). Repetition is often the easiest way to spot which
+  independently justified) — see the verb-variety and formatting rules in
+  `resume-bullet-writing`. Repetition is often the easiest way to spot which
   bullets still need translating from responsibility to outcome framing.
 - **The most job-relevant material goes first** — both at the section level
   (e.g., work experience typically ranks ahead of coursework once a person has
@@ -212,3 +201,7 @@ consistent with the relevance-drives-ordering principle in Part 1.
 3. **`resume-one-page-fitting`** — take the selected, translated content and
    fit it onto one page through layout adjustments first, then a strict,
    ordered content-trimming algorithm.
+
+`resume-bullet-writing` sits underneath all three steps — it's the reference
+for how to actually phrase a bullet (verb choice, the formula, quantification,
+length) whenever any of the above requires drafting or rewriting one.

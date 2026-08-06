@@ -33,9 +33,11 @@ template to use as a style reference:
    or detailed. The `resumeBullet` is the already-finalized, user-approved output; the STAR-Q fields
    are your raw material for understanding context, not a second draft to blend in.
    - The ONLY valid reasons to deviate from `resumeBullet` verbatim: (a) it's too long and must be
-     shortened to fit the page — trim words, don't rewrite from scratch; (b) the JD needs a specific
-     emphasis or keyword that `resumeBullet` genuinely omits AND that emphasis/keyword is not
-     something you can get from a different, unused highlight instead.
+     shortened to fit the page — trim words, don't rewrite from scratch, and keep the verb/result/
+     number intact per `resume-bullet-writing`; (b) the JD needs a specific emphasis or keyword that
+     `resumeBullet` genuinely omits AND that emphasis/keyword is not something you can get from a
+     different, unused highlight instead — see `resume-bullet-writing` for how to weave a keyword in
+     without it reading as bolted on.
    - "This JD is about backend/distributed systems/security/etc." is NOT by itself unusual enough to
      justify a rewrite — most JDs will loosely match the general theme of a highlight. Only rewrite
      when the stored bullet would actively mislead or omit something the JD explicitly asks for.
