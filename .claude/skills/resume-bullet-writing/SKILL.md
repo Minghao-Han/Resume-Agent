@@ -71,7 +71,24 @@ carries the keyword "user segmentation" with far more credibility than appending
 to an unrelated sentence. Never insert a keyword the person's actual experience doesn't support — see
 `resume-content-and-jd-reading` Part 3, Step 4.
 
-## 8. Format consistently across the resume
+## 8. Deciding whether to keep a technical detail
+
+Whether a technical detail earns its place in a bullet isn't just a question of "would a non-technical
+recruiter recognize this word" or "is it in the JD" — also ask what the detail is actually proving:
+a **decision/trade-off** the person made, or just **how** they implemented something.
+
+- **Decision/trade-off (keep it, jargon and all):** comparing options, choosing between approaches,
+  owning the scope of a call. E.g. "chose Redis over a DB-backed cache to cut p99 latency under load."
+  Even a reader with zero context immediately understands "this person weighed alternatives and made a
+  call" — that's judgment, and it reads regardless of whether the specific term is understood. The
+  technical term itself is a bonus: it doubles as an ATS keyword.
+- **Pure implementation mechanism (usually cut):** internal algorithm details, library-specific
+  plumbing, how something works under the hood with no decision attached. This proves only that the
+  person knows the term, not that they exercised judgment or created value — cut it unless this exact
+  mechanism *is* the highlight of the experience (e.g. the experience is specifically "I designed this
+  algorithm"), in which case keep it and make sure the bullet frames it as a choice/result, not trivia.
+
+## 9. Format consistently across the resume
 
 Same bullet symbol, same tense (past tense for past roles; present tense only for a current role's
 ongoing responsibilities), same punctuation convention (all periods or none) throughout the document —
@@ -85,4 +102,6 @@ as carelessness at a glance.
 - Is there a number — or, if none exists, a precise causal mechanism instead of a vague claim?
 - Is it one to two lines, one core result, and under 190 characters?
 - Would a reader recognize the JD's vocabulary in it without it feeling force-fit?
+- For each technical term: does it signal a decision/trade-off, or just an implementation detail with
+  no decision attached? Cut the latter unless it's the core highlight.
 - Does its formatting (bullet symbol, tense, punctuation) match every other bullet on the page?
