@@ -11,7 +11,12 @@ export type { AgentTurnUsage } from "./core";
 // Scoped to just this app's own resume-writing skills (not the user's
 // personal/global skills or Claude Code's bundled ones, which are irrelevant
 // noise for this narrow-purpose agent) — see .claude/skills/.
-const RESUME_GEN_SKILLS = ["resume-content-and-jd-reading", "resume-one-page-fitting", "resume-generation"];
+const RESUME_GEN_SKILLS = [
+  "resume-content-and-jd-reading",
+  "resume-one-page-fitting",
+  "resume-generation",
+  "resume-bullet-writing",
+];
 
 // `tools`/`allowedTools` below only restrict Claude Code's own built-in
 // tools — they do NOT stop MCP-server tools inherited via settingSources

@@ -4,7 +4,7 @@ import { runAgentTurn, PROJECT_ROOT, type AgentToolCall } from "./core";
 
 // Scoped to just this app's own highlight-extraction skills (not the user's
 // personal/global skills or Claude Code's bundled ones) — see .claude/skills/.
-const STARQ_SKILLS = ["resume-highlight-extraction", "star-q-extraction"];
+const STARQ_SKILLS = ["resume-highlight-extraction", "star-q-extraction", "resume-bullet-writing"];
 
 const SERVER_NAME = "starq";
 const TOOL_NAME = "submit_highlights";
