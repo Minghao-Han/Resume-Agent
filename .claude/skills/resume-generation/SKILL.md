@@ -10,24 +10,44 @@ list of saved experiences (each with one or more STAR-Q'd highlights and role ta
 template to use as a style reference:
 
 1. Read the JD and identify the target role and the 4-6 most relevant skills/keywords.
-2. Select individual **highlights** (not whole experiences) whose tags/content best match — prefer
-   quantified, relevant results over recency. An experience may contribute all, some, or none of its
-   highlights; keep the highlights you do use grouped under their parent experience/org on the resume.
-   When choosing between comparably relevant highlights, prefer ones from work experience (internships/
-   jobs) over personal/school projects — work experience carries more weight, so it should fill the
-   page first, with project highlights used to round out remaining space or to cover a JD-relevant gap
-   that no work experience fills.
-3. Default to using each selected highlight's `resumeBullet` as-is. Only rewrite it from the
-   underlying STAR-Q fields (Situation/Task/Action/Result/Quantify) when the JD is specific/unusual
-   enough that the stored bullet doesn't speak to it — e.g. it needs a different emphasis, a JD
-   keyword the stored bullet omits, or it's too long to fit the page. Light tightening (trimming
-   words to fit the page) is fine either way, but don't rewrite wholesale by default, and never paste
-   the raw STAR-Q fields verbatim.
+2. **CRITICAL, non-negotiable ranking rule: work experience (internships/jobs) always outranks
+   personal/school projects, unless a project is the ONLY source that covers a specific JD
+   requirement.** Apply this as an actual two-pass procedure, not a vague preference:
+   - **Pass 1**: build your candidate pool from every work-experience highlight whose tags/content
+     match the JD, ranked by relevance. This pool gets first claim on page space.
+   - **Pass 2**: only pull in project highlights to (a) fill genuinely leftover space after the work
+     pool is exhausted, or (b) cover a specific JD requirement/keyword that no work-experience
+     highlight speaks to at all.
+   - **Before finalizing your selection, explicitly re-check**: for every project highlight you're
+     about to include, is there an unused work-experience highlight that matches the same JD
+     requirement equally or better? If yes, swap it in and drop (or shorten) the project highlight
+     instead. A JD keyword that literally appears in a work-experience highlight's tags/content
+     (e.g. JD says "service discovery" and a work highlight is tagged "service discovery" or its
+     text mentions it directly) must not lose out to a project highlight on a vaguer or partial match.
+   - Recency and "how impressive it sounds" do NOT override this ranking — a less flashy but
+     JD-relevant work highlight still beats a flashier project highlight.
+3. **CRITICAL, non-negotiable rule: use each selected highlight's `resumeBullet` field verbatim by
+   default.** Do not enrich, "improve," or add specificity to it using details pulled from the
+   underlying STAR-Q fields (Situation/Task/Action/Result/Quantify) — even if those fields contain
+   extra numbers, technical terms, or specifics that would make the bullet read as more impressive
+   or detailed. The `resumeBullet` is the already-finalized, user-approved output; the STAR-Q fields
+   are your raw material for understanding context, not a second draft to blend in.
+   - The ONLY valid reasons to deviate from `resumeBullet` verbatim: (a) it's too long and must be
+     shortened to fit the page — trim words, don't rewrite from scratch; (b) the JD needs a specific
+     emphasis or keyword that `resumeBullet` genuinely omits AND that emphasis/keyword is not
+     something you can get from a different, unused highlight instead.
+   - "This JD is about backend/distributed systems/security/etc." is NOT by itself unusual enough to
+     justify a rewrite — most JDs will loosely match the general theme of a highlight. Only rewrite
+     when the stored bullet would actively mislead or omit something the JD explicitly asks for.
+   - Never paste the raw STAR-Q fields verbatim, and never fabricate new specifics (a technique name,
+     a percentage, a response time) that appear nowhere in `resumeBullet` even if they're accurate
+     per the underlying fields — if it's not in `resumeBullet`, treat it as off-limits by default.
 4. Produce a complete, compilable Typst source (`.typ`) for the resume, following the structure/style
    of the provided template, that fits on **one page**.
 5. If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest
    highlight) rather than shrinking font/margins below readable sizes — when cutting, drop project
-   highlights before work-experience highlights of similar relevance.
+   highlights before work-experience highlights of similar relevance. Never cut a work-experience
+   highlight to keep a lower-relevance project highlight.
 
 Never invent experience, employers, dates, or numbers that are not in the saved data.
 
