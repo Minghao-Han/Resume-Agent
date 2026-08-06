@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CodeMirror from "@uiw/react-codemirror";
 import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
 import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { compileTypstPdf, downloadPdfBytes } from "@/lib/typstClient";
+import { typstLanguage } from "@/lib/typstLanguage";
+import { useIsDarkMode } from "@/lib/useIsDarkMode";
 import { toast } from "@/lib/toast";
 import { ApiError, apiGet, apiPost, apiPutBinary } from "@/lib/apiClient";
 import { useReportDirty, UNSAVED_CHANGES_MESSAGE } from "@/lib/unsavedChanges";
@@ -83,6 +86,8 @@ export default function GeneratePage() {
   const [usage, setUsage] = useState<GenerateUsage | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedTypstSnapshot, setSavedTypstSnapshot] = useState("");
+  const [leftView, setLeftView] = useState<"chat" | "source">("chat");
+  const isDark = useIsDarkMode();
 
   const isDirty = typstSource !== "" && typstSource !== savedTypstSnapshot;
   useReportDirty(isDirty);
@@ -181,51 +186,78 @@ export default function GeneratePage() {
   return (
     <div className="grid h-full min-h-0 grid-cols-2">
       <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-neutral-200 p-4 dark:border-neutral-800">
-        <label className="flex items-center gap-2 text-sm">
-          <span className="shrink-0 text-neutral-600 dark:text-neutral-400">使用模板</span>
-          <select
-            className="input flex-1"
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            disabled={templates.length === 0}
-          >
-            {templates.length === 0 && <option value="">（还没有模板）</option>}
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-                {t.isDefault ? " · 默认" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="flex flex-1 items-center gap-2 text-sm">
+            <span className="shrink-0 text-neutral-600 dark:text-neutral-400">使用模板</span>
+            <select
+              className="input flex-1"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              disabled={templates.length === 0}
+            >
+              {templates.length === 0 && <option value="">（还没有模板）</option>}
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.isDefault ? " · 默认" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          {typstSource && (
+            <button
+              type="button"
+              className="btn-secondary shrink-0"
+              onClick={() => setLeftView((v) => (v === "chat" ? "source" : "chat"))}
+            >
+              {leftView === "chat" ? "编辑 Typst 源码" : "返回对话"}
+            </button>
+          )}
+        </div>
         {templates.length === 0 && (
           <p className="text-sm text-neutral-500">
             还没有可用的简历模板，先去「模板编辑」页创建一个吧。
           </p>
         )}
-        <textarea
-          className="textarea w-full"
-          rows={6}
-          placeholder="粘贴 JD 文本，或直接粘贴 JD 链接（以 http(s):// 开头会自动识别为 URL）…"
-          value={jdText}
-          onChange={(e) => setJdText(e.target.value)}
-        />
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={generate}
-          disabled={generating || !jdText.trim() || !templateId}
-        >
-          {generating ? "生成中…" : sessionId ? "重新生成" : "生成简历"}
-        </button>
 
-        <ChatPanel
-          className="min-h-0 flex-1 rounded border border-neutral-200 dark:border-neutral-800"
-          messages={messages}
-          onSend={sendChat}
-          sending={generating}
-          placeholder={sessionId ? "继续对话调整简历…" : "先生成一次简历，之后可以继续对话调整"}
-        />
+        {leftView === "source" && typstSource ? (
+          <div className="min-h-0 flex-1 overflow-hidden rounded border border-neutral-200 dark:border-neutral-800">
+            <CodeMirror
+              value={typstSource}
+              height="100%"
+              theme={isDark ? "dark" : "light"}
+              extensions={[typstLanguage]}
+              onChange={(value) => setTypstSource(value)}
+              style={{ height: "100%", fontSize: 13 }}
+            />
+          </div>
+        ) : (
+          <>
+            <textarea
+              className="textarea w-full"
+              rows={6}
+              placeholder="粘贴 JD 文本，或直接粘贴 JD 链接（以 http(s):// 开头会自动识别为 URL）…"
+              value={jdText}
+              onChange={(e) => setJdText(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={generate}
+              disabled={generating || !jdText.trim() || !templateId}
+            >
+              {generating ? "生成中…" : sessionId ? "重新生成" : "生成简历"}
+            </button>
+
+            <ChatPanel
+              className="min-h-0 flex-1 rounded border border-neutral-200 dark:border-neutral-800"
+              messages={messages}
+              onSend={sendChat}
+              sending={generating}
+              placeholder={sessionId ? "继续对话调整简历…" : "先生成一次简历，之后可以继续对话调整"}
+            />
+          </>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-col gap-2 p-4">
