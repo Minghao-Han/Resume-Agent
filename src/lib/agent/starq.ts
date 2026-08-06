@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, tool, type CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { runAgentTurn, PROJECT_ROOT, type AgentToolCall } from "./core";
 
 // Scoped to just this app's own highlight-extraction skills (not the user's
@@ -9,6 +9,16 @@ const STARQ_SKILLS = ["resume-highlight-extraction", "star-q-extraction"];
 const SERVER_NAME = "starq";
 const TOOL_NAME = "submit_highlights";
 const FULL_TOOL_NAME = `mcp__${SERVER_NAME}__${TOOL_NAME}`;
+
+// See resumeGen.ts for why this is needed: `tools`/`allowedTools` don't
+// restrict MCP-server tools inherited via settingSources, so without an
+// explicit canUseTool allowlist this session could reach the user's other
+// MCP integrations (e.g. Google Drive) despite having nothing to do with them.
+const ALLOWED_TOOL_NAMES = new Set([FULL_TOOL_NAME, "Skill"]);
+const canUseTool: CanUseTool = async (toolName) => {
+  if (ALLOWED_TOOL_NAMES.has(toolName)) return { behavior: "allow" };
+  return { behavior: "deny", message: `${toolName} is not permitted for highlight extraction.` };
+};
 
 export type HighlightResult = {
   title: string;
@@ -124,6 +134,7 @@ export async function runStarQTurn(params: {
     settings: { autoMemoryEnabled: false },
     resume: sessionId,
     permissionMode: "default",
+    canUseTool,
   });
 
   return {

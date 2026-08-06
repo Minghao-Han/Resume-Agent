@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { runAgentTurn, PROJECT_ROOT, type AgentTurnUsage } from "./core";
 import { sanitizeTemplateSource } from "./templateSanitize";
 import { sanitizeGeneratedTypst } from "./typstOutput";
@@ -11,6 +12,23 @@ export type { AgentTurnUsage } from "./core";
 // personal/global skills or Claude Code's bundled ones, which are irrelevant
 // noise for this narrow-purpose agent) — see .claude/skills/.
 const RESUME_GEN_SKILLS = ["resume-content-and-jd-reading", "resume-one-page-fitting", "resume-generation"];
+
+// `tools`/`allowedTools` below only restrict Claude Code's own built-in
+// tools — they do NOT stop MCP-server tools inherited via settingSources
+// from being reachable. Confirmed directly: with only `tools: ["WebFetch",
+// "Skill"]` set and no canUseTool, a real generation turn invoked
+// `mcp__claude_ai_Google_Drive__create_file`, attempting to write the
+// resume into the user's actual Google Drive — completely unrelated to this
+// narrow-purpose session and never something it should be able to reach.
+// This is a default-deny allowlist (same pattern as assistant.ts's
+// canUseTool) rather than trying to enumerate every MCP server to block,
+// since new integrations the user adds later would otherwise be silently
+// exposed here too.
+const ALLOWED_TOOL_NAMES = new Set(["WebFetch", "Skill", "StructuredOutput"]);
+const canUseTool: CanUseTool = async (toolName) => {
+  if (ALLOWED_TOOL_NAMES.has(toolName)) return { behavior: "allow" };
+  return { behavior: "deny", message: `${toolName} is not permitted for resume generation.` };
+};
 
 // Pinned rather than left at the CLI default — profiling showed a single
 // initial generation turn taking ~2+ minutes. This task (select from a given
@@ -228,6 +246,7 @@ export async function startResumeGeneration(params: {
     settingSources: ["project", "local"],
     settings: { autoMemoryEnabled: false },
     permissionMode: "default",
+    canUseTool,
   });
 
   const parsed = isError ? null : parseStructuredOutput(structuredOutput, replyText);
@@ -270,6 +289,7 @@ export async function continueResumeGeneration(params: {
     settings: { autoMemoryEnabled: false },
     resume: sessionId,
     permissionMode: "default",
+    canUseTool,
   });
 
   const parsed = isError ? null : parseStructuredOutput(structuredOutput, replyText);
