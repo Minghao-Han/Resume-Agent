@@ -172,6 +172,22 @@ export default function ExperiencePage() {
     }
   }
 
+  async function clearChatHistory() {
+    if (sending) return;
+    if (current.chatHistory.length === 0 && !current.sessionId) return;
+    if (!confirm("清空对话历史？已提取的 highlights 不会被删除，但对话上下文会丢失。")) return;
+    const oldSessionId = current.sessionId;
+    setCurrent((c) => ({ ...c, chatHistory: [], sessionId: null }));
+    if (oldSessionId) {
+      try {
+        await apiPost("/api/experience/distill/new-session", { sessionId: oldSessionId });
+      } catch {
+        // best-effort: local state is already reset regardless
+      }
+    }
+    toast("已清空对话");
+  }
+
   function updateHighlight(index: number, patch: Partial<Highlight>) {
     setCurrent((c) => ({
       ...c,
@@ -346,16 +362,30 @@ export default function ExperiencePage() {
           </button>
         </div>
 
-        <ChatPanel
-          className="min-h-0 border-l border-neutral-200 dark:border-neutral-800"
-          messages={current.chatHistory}
-          onSend={sendChat}
-          sending={sending}
-          placeholder="继续和 Claude 对话，调整提取结果…"
-          mentionables={current.highlights.map(
-            (h, i): MentionItem => ({ id: String(i), label: h.title || `Highlight ${i + 1}` })
-          )}
-        />
+        <div className="flex min-h-0 flex-col border-l border-neutral-200 dark:border-neutral-800">
+          <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
+            <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">对话</span>
+            <button
+              type="button"
+              onClick={clearChatHistory}
+              disabled={sending}
+              className="rounded px-2 py-1 text-xs text-neutral-500 hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
+              title="清空对话历史（会删除旧的会话记录，不影响已提取的 highlights）"
+            >
+              清空历史
+            </button>
+          </div>
+          <ChatPanel
+            className="min-h-0 flex-1"
+            messages={current.chatHistory}
+            onSend={sendChat}
+            sending={sending}
+            placeholder="继续和 Claude 对话，调整提取结果…"
+            mentionables={current.highlights.map(
+              (h, i): MentionItem => ({ id: String(i), label: h.title || `Highlight ${i + 1}` })
+            )}
+          />
+        </div>
       </div>
     </div>
   );

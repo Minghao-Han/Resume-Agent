@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createSdkMcpServer, tool, type CanUseTool } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, deleteSession, tool, type CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { runAgentTurn, PROJECT_ROOT, type AgentToolCall } from "./core";
 
 // Scoped to just this app's own highlight-extraction skills (not the user's
@@ -143,4 +143,19 @@ export async function runStarQTurn(params: {
     highlights: isError ? null : findHighlightsCall(toolCalls),
     isError,
   };
+}
+
+/**
+ * Starts a fresh STAR-Q conversation by deleting the old session's on-disk
+ * transcript (not just dropping our reference to it) — best-effort: if the
+ * old session is already gone or deletion otherwise fails, that shouldn't
+ * block the user from starting a new conversation.
+ */
+export async function resetStarQSession(oldSessionId?: string): Promise<void> {
+  if (!oldSessionId) return;
+  try {
+    await deleteSession(oldSessionId, { dir: PROJECT_ROOT });
+  } catch {
+    // best-effort cleanup; ignore failures (e.g. session already gone)
+  }
 }
