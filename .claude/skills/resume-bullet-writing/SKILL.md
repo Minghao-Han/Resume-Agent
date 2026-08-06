@@ -52,6 +52,10 @@ sign it needs tightening, not lengthening. Prefer sentence fragments (no "I," co
 non-use — of a trailing period) over full grammatical sentences; fragments fit more signal into the
 same space.
 
+**Hard limit: a bullet must never exceed 190 characters** (including spaces/punctuation). This is a
+non-negotiable cap, not a target — if a draft comes in over 190 characters, cut words until it's under,
+don't just aim to shorten it. Count before finalizing any bullet.
+
 ## 6. Order by importance, not chronology
 
 Put the strongest, most relevant bullet first within each entry, ranked by relevance to the target
@@ -79,6 +83,6 @@ as carelessness at a glance.
 - Does it start with an action verb, not "Responsible for" / "Duties included"?
 - Does it say what changed, not just what task was performed?
 - Is there a number — or, if none exists, a precise causal mechanism instead of a vague claim?
-- Is it one to two lines, one core result?
+- Is it one to two lines, one core result, and under 190 characters?
 - Would a reader recognize the JD's vocabulary in it without it feeling force-fit?
 - Does its formatting (bullet symbol, tense, punctuation) match every other bullet on the page?
