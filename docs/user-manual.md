@@ -1,217 +1,220 @@
-# 用户手册
+# User Manual
 
-Resume Agent 是一个**个人本地使用**的简历定制工具：维护一份可复用的经历/亮点素材库，针对每个岗位的 JD 生成一份贴合的、AI 辅助撰写的单页 Typst 简历。全程在本机运行，数据存在本地 SQLite 数据库里。
+Resume Agent is a **personal, local-use** resume-tailoring tool: it keeps a reusable library of your experience/highlights, and generates an AI-assisted, one-page Typst resume tailored to a specific job description. It runs entirely on your own machine; your data lives in a local SQLite database.
 
-本手册分两部分：
+This manual has two parts:
 
-- **第一部分：快速开始** — 如何安装、以及从零到生成第一份简历的完整推荐流程。
-- **第二部分：详细功能说明** — 每个页面的作用、经历蒸馏怎么做、如何用 AI 对话精修简历，以及一些当前的已知限制。
+- **Part 1: Quick Start** — how to install, and the full recommended flow from zero to your first generated resume.
+- **Part 2: Detailed Feature Guide** — what each page does, how experience distillation works, how to refine a resume via AI chat, plus a short list of current known limitations.
+
+(中文版见 [`user-manual.cn.md`](./user-manual.cn.md)。)
 
 ---
 
-# 第一部分：快速开始
+# Part 1: Quick Start
 
-## 1. 安装
+## 1. Installation
 
 ```bash
-# 1. 安装依赖（会自动执行 postinstall，把 Typst 的 wasm 文件拷到 public/typst/ 下）
+# 1. Install dependencies (postinstall automatically copies the Typst wasm files
+#    into public/typst/)
 npm install
 
-# 2. 配置数据库连接 —— 项目根目录新建一个 .env 文件，写入：
+# 2. Configure the database connection — create a .env file at the repo root:
 echo 'DATABASE_URL="file:./dev.db"' > .env
 
-# 3. 初始化数据库（会依次跑完 prisma/migrations 下的所有迁移，
-#    生成 dev.db，并生成 Prisma Client 到 src/generated/prisma）
+# 3. Initialize the database (applies every migration under prisma/migrations,
+#    creates dev.db, and generates the Prisma Client into src/generated/prisma)
 npx prisma migrate dev
 
-# 4. 确保能访问 Claude ——见下方说明
-# 5a. 本地开发
+# 4. Make sure Claude access is available — see note below
+# 5a. Local development
 npm run dev
-# 5b. 或者构建后以生产模式启动
+# 5b. Or build then run in production mode
 npm run build && npm run start
 ```
 
-默认监听 `http://localhost:3000`。
+Listens on `http://localhost:3000` by default.
 
-**关于访问 Claude**：本项目所有 AI 功能都通过 [Claude Agent SDK](https://docs.claude.com) 调用本机的 Claude Code CLI 进程，因此你需要满足以下**两种方式之一**：
+**About Claude access**: every AI feature in this app goes through the [Claude Agent SDK](https://docs.claude.com), which talks to a local Claude Code CLI process. You need **one of the following**:
 
-- 本机已安装并登录 Claude Code CLI（使用你自己的 Claude 订阅账号）；或
-- 设置环境变量 `ANTHROPIC_API_KEY`（放进 `.env` 或 shell 环境均可）。
+- The Claude Code CLI installed and already logged in on this machine (using your own Claude subscription); or
+- An `ANTHROPIC_API_KEY` environment variable set (either in `.env` or your shell environment).
 
-应用内没有单独的"填 API Key"设置页面——这是一个个人本地工具，默认信任运行它的这台机器上已经配置好的 Claude 访问方式。
+There's no in-app "enter your API key" settings page — this is a personal local tool, so it trusts however Claude access is already configured on the machine running it.
 
-> 没有找到 `.env.example` 文件，也没有指定 Node 版本下限；Claude Agent SDK 自身要求 Node ≥ 18。
+> No `.env.example` file exists, and no minimum Node version is declared by this app itself; the Claude Agent SDK itself requires Node ≥ 18.
 
-## 2. 推荐工作流程
+## 2. Recommended Workflow
 
-按下面顺序走一遍，就是把这个工具用起来的完整路径：
+Following this order is the complete path to actually using the tool:
 
 ```
-① 编辑简历模板  →  ② 填写个人信息  →  ③ 蒸馏个人经历  →  ④ 生成简历并保存  →  ⑤ 历史简历中预览/修改
-    模板编辑           个人信息            经历蒸馏             生成简历              历史简历
+① Edit a resume template → ② Fill in personal info → ③ Distill your experience → ④ Generate & save a resume → ⑤ Preview/edit it in history
+      Templates                    Profile               Experience Distillation      Generate Resume            Resume History
 ```
 
-### ① 先编辑一个简历模板（页面：「模板编辑」）
+### ① Start with a resume template (page: "Templates")
 
-打开「模板编辑」页，编辑左侧的 Typst 源码（带语法高亮），右侧会实时编译预览。写好后点击**「保存为模板」**。
+Open the Templates page and edit the Typst source in the left pane (with syntax highlighting) — the right pane compiles a live preview. Once it looks right, click **"保存为模板" (Save as Template)**.
 
-- 可以创建多个模板；点右上角的**「新建」**从一个空白骨架重新开始。
-- 点击**「分析模板」**可以让 AI 用一份虚构的示例数据跑一遍生成流程，估算这个模板"一页大概能装多少字"，之后正式生成简历时会用这个估算值做个大致的篇幅参考（不是硬性规则）。**分析前必须先保存**，因为分析针对的是已保存的版本。
+- You can keep multiple templates; the top-right **"新建" (New)** button resets to a blank skeleton.
+- **"分析模板" (Analyze Template)** has the AI run one full generation pass against built-in placeholder sample data to estimate roughly how much text this template's single page can hold — later, real generation uses that estimate as a loose sizing hint (not a hard rule). The template must be saved before you can analyze it, since analysis runs against the saved version.
 
-> 已知限制：目前没有 UI 可以设置"哪个模板是默认模板"，即使数据库和后端接口都支持这个字段。
+> Known limitation: there's currently no UI to mark a template as the "default" one, even though the database and API already support that field.
 
-### ② 填写个人信息（页面：「个人信息」）
+### ② Fill in your personal info (page: "Profile" / 个人信息)
 
-姓名、电话、邮箱、地区、GitHub、LinkedIn，以及若干条教育经历（可以逐条添加/删除）。这些信息会在生成简历时被写入模板对应位置——即使你套用的模板里原本写死了别人（或占位符）的姓名邮箱，系统也会用你在这里填写的真实信息做机械替换，不完全依赖 AI"记得"要换掉。
+Name, phone, email, location, GitHub, LinkedIn, plus any number of education entries (add/remove individually). This information gets written into the corresponding spots in the template at generation time — even if the template you're using already has someone else's (or placeholder) name/email hardcoded into it, the system mechanically replaces it with what you've filled in here, rather than relying entirely on the AI to "remember" to swap it out.
 
-填完点击**「保存」**。
+Click **"保存" (Save)** when done.
 
-### ③ 蒸馏个人经历（页面：「经历蒸馏」）
+### ③ Distill your experience (page: "Experience Distillation" / 经历蒸馏)
 
-这是整个工具最核心的一步：把一段实习/项目的原始描述，通过和 AI 对话，拆解成若干条结构化、可量化的简历亮点（highlight）。
+This is the core step of the whole tool: turning a raw description of an internship/project into one or more structured, quantified resume highlights, through a conversation with the AI.
 
-1. 点「+ 新建经历」，填标题、公司/项目名、类型（实习/项目）、起止时间、地区。
-2. 把这段经历的完整原始描述粘贴进大文本框，点**「提取 Highlights」**。
-3. AI 会把这段经历拆成一条或多条 highlight（**一段经历完全可能包含好几个独立的亮点**，比如一次实习里做了安全修复、又做了系统设计、还处理过一次线上事故——每个都会拆成单独一条），每条包含 Situation / Task / Action / Result / Quantify（尽量给出量化数字，没有数字 AI 会追问而不是编造）和一条打磨好的 Resume Bullet，外加 2-5 个角色标签（tag）。
-4. 继续在右侧对话框里聊，可以让 AI 调整某条 highlight、补充细节、重新措辞。
-5. 满意后点左侧底部**「保存」**——注意，提取出来的内容只在页面里，**必须点保存才会真正写入数据库**。
+1. Click "+ 新建经历" (+ New Experience), fill in title, company/project name, type (internship/project), start/end dates, and location.
+2. Paste the full raw description of that experience into the big textarea, then click **"提取 Highlights" (Extract Highlights)**.
+3. The AI splits this experience into one or more highlights (**a single experience can genuinely contain several independent highlights** — e.g. one internship that covered a security fix, a system-design project, and an incident response would each become their own entry). Each highlight has Situation / Task / Action / Result / Quantify (push for a real number — the AI will ask rather than invent one) and a polished Resume Bullet, plus 2–5 role tags.
+4. Keep chatting in the right-hand panel to have the AI adjust a highlight, add detail, or rephrase something.
+5. When you're happy, click **"保存" (Save)** at the bottom of the left column — note that everything extracted so far only exists on the page; **it isn't written to the database until you click Save**.
 
-详细的对话技巧（比如怎么精确指定"只改第几条"）见第二部分。
+Conversation tricks (e.g. how to precisely target "only edit highlight #3") are covered in Part 2.
 
-### ④ 生成简历并保存（页面：「生成简历」）
+### ④ Generate & save a resume (page: "Generate Resume" / 生成简历)
 
-1. 选一个模板。
-2. 粘贴 JD 文本（或者直接粘贴 JD 的链接，系统会自动识别是不是 URL 并让 AI 自己去抓取网页内容）。
-3. 点**「生成简历」**。AI 会读取你保存的所有经历亮点，挑选和这个 JD 最匹配的内容，生成一份 Typst 简历，右侧实时编译预览。
-4. 生成之后可以继续在对话框里聊，让 AI 调整（比如"这条 bullet 再量化一点"、"帮我换个说法强调一下并发经验"）。也可以直接点**「重新生成」**整体重来。
-5. 如果编译结果超过一页，会出现一条提示，点**「自动压缩到一页」**让 AI 自己精简；如果一页还有明显空白，会提示**「自动填充更多内容」**。
-6. 满意后：
-   - **「下载 PDF」**：只是把当前内容编译成 PDF 存到你电脑上，不会存进历史记录。
-   - **「保存」**：会把这份简历正式存进「历史简历」，同时也会编译一份 PDF 存起来。**只有点了"保存"，这份简历才会出现在历史简历列表里**。
+1. Pick a template.
+2. Paste the JD text (or paste a JD URL directly — the system auto-detects whether it's a URL and has the AI fetch the page itself).
+3. Click **"生成简历" (Generate Resume)**. The AI reads all your saved experience highlights, picks the ones that best match this JD, and generates a Typst resume, with a live-compiled preview on the right.
+4. After generation, you can keep chatting to refine it (e.g. "make that bullet more quantified," "rephrase this to emphasize my concurrency experience"), or click **"重新生成" (Regenerate)** to start over entirely.
+5. If the compiled result runs over one page, a banner appears with **"自动压缩到一页" (Auto-compress to One Page)**; if there's noticeably empty space on one page, you'll see **"自动填充更多内容" (Auto-fill More Content)**.
+6. Once you're satisfied:
+   - **"下载 PDF" (Download PDF)**: just compiles the current content to a PDF and downloads it to your machine — nothing is saved to history.
+   - **"保存" (Save)**: persists this resume into "Resume History" and also compiles and stores a PDF. **A resume only shows up in Resume History once you click Save.**
 
-### ⑤ 在「历史简历」中查看和修改
+### ⑤ Review and edit it in "Resume History" (历史简历)
 
-打开「历史简历」页，会看到所有保存过的简历卡片。点**「预览」**弹出大图预览；点**「编辑」**可以直接在预览左侧展开 Typst 源码编辑器做快速的手动微调，改完点**「保存」**即可覆盖这份历史记录（同时重新编译并替换掉对应的 PDF 文件）。
+Open the Resume History page to see every saved resume as a card. Click **"预览" (Preview)** to open a large preview; click **"编辑" (Edit)** to expand a Typst source editor to the left of the preview for quick manual tweaks — click **"保存" (Save)** to overwrite that history entry (recompiling and replacing the corresponding PDF file too).
 
 ---
 
-# 第二部分：详细功能说明
+# Part 2: Detailed Feature Guide
 
-## 页面总览
+## Page Overview
 
-顶部导航栏（在每个页面都可见）：
+Top navigation bar (visible on every page):
 
-| 导航项 | 路径 | 作用 |
+| Nav label | Route | Purpose |
 |---|---|---|
-| 经历蒸馏 | `/experience` | 把原始经历文本，通过 AI 对话拆解成结构化、可量化的简历亮点 |
-| 生成简历 | `/generate` | 针对一份具体 JD，挑选合适的亮点、生成并打磨一份单页 Typst 简历 |
-| 历史简历 | `/resumes` | 浏览、预览、下载、编辑、删除所有保存过的简历 |
-| 模板编辑 | `/templates` | 编写/维护 Typst 简历模板，可选做"容量分析" |
-| 个人信息 | `/profile` | 姓名/联系方式/教育经历等基础信息 |
+| 经历蒸馏 (Experience Distillation) | `/experience` | Turn raw experience text into structured, quantified resume highlights via AI conversation |
+| 生成简历 (Generate Resume) | `/generate` | Pick the right highlights for a specific JD and generate/polish a one-page Typst resume |
+| 历史简历 (Resume History) | `/resumes` | Browse, preview, download, edit, and delete every saved resume |
+| 模板编辑 (Templates) | `/templates` | Author/maintain Typst resume templates, optionally run "capacity analysis" |
+| 个人信息 (Profile) | `/profile` | Name/contact info/education and other base info |
 
-首页 `/` 是这五个功能的入口卡片，点击效果和导航栏一致。
+The home page `/` is just entry cards for these same five features, equivalent to clicking the nav bar.
 
-此外，**每个页面右侧都悬浮着一个圆形的"AI"按钮**（可以沿右边缘上下拖动位置），点开是一个独立的"助手"对话窗——见下文「悬浮助手」。
+There's also a **floating circular "AI" button** on the right edge of every page (draggable vertically), which opens an independent "assistant" chat window — see "Floating Assistant" below.
 
-## 经历蒸馏（STAR-Q 提取）详解
+## Experience Distillation (STAR-Q Extraction) in Detail
 
-### 完整流程
+### Full flow
 
-1. 填基本信息（标题/公司/类型/起止时间/地区），粘贴原始经历文本，点「提取 Highlights」。
-2. 后端会让 AI **必须**在每一次回复里都提交一份"当前完整的 highlight 列表"（不是增量），所以你随时能看到最新的、完整的一份结果。
-3. 每条 highlight 包含：
-   - **Title**：这条成就的简短命名
-   - **Situation / Task / Action / Result**：标准 STAR
-   - **Quantify**：结果对应的量化数字——如果原文里没有数字，AI 会向你追问，而不是自己编一个
-   - **Resume Bullet**：综合以上信息、打磨好的一句简历用语（不是把几个字段拼起来）
-   - **Tags**：2-5 个角色标签（比如"backend"、"security"、"data science"）
-4. 一段经历经常会被拆成**多条独立的 highlight**——比如同一段实习里的安全修复、系统设计、线上事故处理，会各自成为一条，而不是硬揉成一条又长又杂的 bullet。
+1. Fill in the basics (title/company/type/dates/location), paste the raw experience text, click "提取 Highlights" (Extract Highlights).
+2. The backend requires the AI to submit a **complete** current list of highlights (never a diff) in every single reply, so you always see the latest full result.
+3. Each highlight contains:
+   - **Title**: a short name for this achievement
+   - **Situation / Task / Action / Result**: standard STAR
+   - **Quantify**: the result restated with a number — if the source text has no number, the AI will ask you for one rather than inventing it
+   - **Resume Bullet**: a polished, single-sentence synthesis of the above (not the raw fields concatenated)
+   - **Tags**: 2–5 role tags (e.g. "backend," "security," "data science")
+4. A single experience is often split into **multiple independent highlights** — e.g. the security fix, the system-design project, and the incident response from the same internship would each become their own entry, rather than being crammed into one long, unfocused bullet.
 
-### 用 @ 精确指定要改哪一条
+### Using @ to precisely target one highlight
 
-右侧对话框支持输入 `@` 来 @ 某一条已提取的 highlight（自动补全会列出当前所有 highlight 的标题）。当你在消息里 @ 了某条 highlight 后发送，系统会明确告诉 AI："这次的修改要求只针对被 @ 的这条，其它每一条都必须原样保留、不能变"。如果不 @ 任何一条，AI 会自己判断这条请求是针对哪条 highlight，或者是否是普遍性的要求（比如"再帮我加一条"）。
+The chat panel on the right supports typing `@` to mention a specific already-extracted highlight (autocomplete lists the titles of all current highlights). When you send a follow-up message with one or more highlights @mentioned, the system explicitly tells the AI: "this request applies only to the mentioned one(s) — every other highlight must be preserved exactly as-is." If nothing is @mentioned, the AI uses its own judgment to figure out which highlight (if any) the request refers to, or whether it's a general request (e.g. "add one more").
 
-这是目前**唯一**支持精确定点修改的对话场景（生成简历页面的对话框没有这个 @ 功能，见下文）。
+This is currently the **only** chat scenario that supports precise, targeted edits (the Generate Resume page's chat does not have this @ feature — see below).
 
-### 手动编辑
+### Manual editing
 
-除了对话，每条 highlight 卡片本身也可以直接手动改：
-- 展开「展开 STAR-Q」可以逐字段编辑 Situation/Task/Action/Result/Quantify；
-- Resume Bullet 一直是可编辑的文本框；
-- 标签可以逐个添加/删除；
-- 也可以点「+ 手动添加一条」完全手写一条 highlight，或点「删除」去掉某条。
+Beyond chat, each highlight card can also be edited by hand directly:
+- "展开 STAR-Q" (Expand STAR-Q) reveals editable fields for Situation/Task/Action/Result/Quantify individually;
+- The Resume Bullet field is always an editable textarea;
+- Tags can be added/removed one at a time;
+- "+ 手动添加一条" (+ Add Manually) appends a fully blank highlight, and "删除" (Delete) removes one.
 
-### 清空对话历史
+### Clearing chat history
 
-对话框顶部有个**「清空历史」**按钮：会清空当前显示的聊天记录、并且真正结束底层的 AI 会话（不是简单地把消息隐藏——下一条消息会是一次全新的对话，AI 不会再"记得"之前聊过什么）。**已经提取出来的 highlight 不会被清空**——这两者是分开的。
+There's a **"清空历史" (Clear History)** button at the top of the chat panel: it clears the currently displayed chat log *and* actually ends the underlying AI session (not just hiding messages — the next message truly starts a fresh conversation, with the AI no longer "remembering" anything from before). **Already-extracted highlights are not affected** — the two are entirely separate.
 
-### 记得点保存
+### Remember to save
 
-无论是对话提取、手动改动，还是清空了聊天记录，这一切都只发生在页面本地；只有点击左侧底部的**「保存」**才会真正写入数据库。切换到别的经历、或者离开页面时，如果有未保存的改动，系统会弹窗提醒确认。
+Whether from chat extraction, manual edits, or clearing chat history — all of it only happens locally on the page. Only clicking **"保存" (Save)** at the bottom of the left column actually persists it to the database. Switching to a different experience, or leaving the page, with unsaved changes prompts a confirmation dialog.
 
-## 生成简历详解
+## Resume Generation in Detail
 
-### 输入 JD
+### Entering a JD
 
-一个文本框，可以直接粘贴 JD 全文，也可以粘贴 JD 的网页链接——系统会自动识别输入是不是以 `http(s)://` 开头，如果是，会让 AI 自己用 WebFetch 工具去抓取网页内容。
+A single textarea accepts either the full JD text or a JD page URL — the system auto-detects whether the input starts with `http(s)://`, and if so, has the AI fetch the page content itself via the WebFetch tool.
 
-### 生成过程中会发生什么（自动收敛）
+### What happens during generation (auto-convergence)
 
-点「生成简历」后，后端不只是简单地问一次 AI 就完事——每一次生成或对话都会经过一个**自动收敛（auto-converge）循环**：
+Clicking "生成简历" (Generate Resume) doesn't just ask the AI once and stop — every generation or chat turn goes through an **auto-convergence loop**:
 
-- 生成结果出来后，系统会在服务端真正编译一次 Typst，检查页数和"填充率"（内容实际占用页面高度的比例）。
-- 如果不满足"刚好一页、并且填充率不低于 90%"，系统会**自动**再发起最多 3 轮修正对话（超过一页就发"请压缩到一页"的指令，篇幅不够就发"请填充空白"的指令），每一轮都会给 AI 一个基于上一轮实际字数/填充率换算出来的目标字数作为参考。
-- 所有轮次都会作为"自动调整："开头的助手消息出现在对话记录里，让你能看到中间过程。
-- 最终采用的不一定是最后一轮——系统会给每一轮打分，挑"最接近收敛"的那一轮（因为修正有时会矫枉过正，比如为了压缩到一页结果留白太多）。
+- Once a result comes back, the system compiles the Typst source for real on the server and checks the page count and "fill ratio" (how much of the page height the content actually occupies).
+- If it doesn't meet "exactly one page, fill ratio at least 90%," the system **automatically** sends up to 3 more corrective chat turns (a "shorten to one page" instruction if it's overflowing, a "fill it in" instruction if it's underfull), each including a target character count computed from that round's own actual character-count/fill-ratio numbers.
+- Every round shows up in the chat log as an assistant message prefixed "自动调整：" (Auto-adjustment:) so you can see the intermediate steps.
+- The final result used isn't necessarily the last round — the system scores every round and picks whichever is "closest to converged" (since a correction can overshoot, e.g. compressing to one page but leaving too much empty space).
 
-也就是说，**点一次"生成"，后台可能悄悄跑了最多 4 轮 AI 对话**——这解释了为什么生成有时会比预期花更久。
+In other words, **one click of "Generate" can silently run up to 4 total AI turns behind the scenes** — this is why generation can sometimes take longer than expected.
 
-### 生成之后：继续对话精修
+### After generation: refining via chat
 
-生成完成后，左侧的对话框可以继续用来精修——比如：
+Once generation completes, the left chat panel can be used to keep refining, e.g.:
 
-> "把关于数据库优化的那条 bullet 写得更量化一些"
-> "整体语气再正式一点"
-> "重点强调一下我在并发系统上的经验"
+> "Make the bullet about database optimization more quantified"
+> "Make the overall tone a bit more formal"
+> "Emphasize my concurrent-systems experience more"
 
-**注意**：生成简历页面的对话框**没有** @ 精确定位功能（不像经历蒸馏页面那样可以 @ 某一条 highlight）——要精修某个具体的 bullet，只能用自然语言在消息里描述清楚"是哪一条"（比如提一下公司名/关键词），AI 会自己判断你说的是简历里的哪部分。每一轮回复都是重新生成一份**完整**的 Typst 源码（不是只改一小段的 diff）。
+**Note**: the Generate Resume page's chat has **no** @-targeting feature (unlike the Experience Distillation page, which can @mention a specific highlight) — to refine one specific bullet, you have to describe which one you mean in plain language (e.g. mentioning the company name or a keyword), and the AI uses its own judgment to figure out which part of the resume you're referring to. Every reply re-emits the **entire** Typst source (never a partial diff).
 
-### 页面警告与一键修复
+### Warning banners and one-click fixes
 
-- **超过一页**：出现"当前 N 页，超出一页限制"的提示条，点**「自动压缩到一页」**让 AI 自动精简。
-- **明显留白**：单页但内容明显没填满时（低于约 85%），出现"页面下方还有较多空白"的提示，点**「自动填充更多内容」**让 AI 按既定策略（先调整排版、再从已有经历里补充一条没用到的亮点、最后才考虑加一条新的相关经历）去填充。
+- **Over one page**: a banner reads "当前 N 页，超出一页限制" (Currently N pages, over the one-page limit), with a **"自动压缩到一页" (Auto-compress to One Page)** button that has the AI shorten it automatically.
+- **Noticeably underfull**: when the page is single but clearly not full (below roughly 85%), a banner reads "页面下方还有较多空白" (There's noticeable empty space at the bottom), with a **"自动填充更多内容" (Auto-fill More Content)** button that has the AI fill it in per a fixed tiered strategy (layout adjustments first, then deepen an existing experience with an unused highlight, and only as a last resort add a new, secondarily-relevant entry).
 
-### 手动编辑 Typst 源码
+### Manually editing the Typst source
 
-生成过至少一次之后，模板选择框旁边会出现一个**「编辑 Typst 源码」**按钮。点击后，左侧原本的 JD 输入框+对话框会整体"翻转"成一个带语法高亮的 Typst 代码编辑器，直接绑定到当前的简历源码——改动会实时同步到右侧预览（无需手动点"重新编译"）。这适合"AI 生成得已经很接近了，我自己微调几个字"的场景。点**「返回对话」**能随时切回聊天视图（微调的内容不会丢）。
+Once you've generated at least once, a **"编辑 Typst 源码" (Edit Typst Source)** button appears next to the template selector. Clicking it "flips" the entire left pane — the JD textarea and chat — into a syntax-highlighted Typst code editor bound directly to the current resume source; edits sync live to the preview on the right (no manual "recompile" needed). This suits the "the AI got it almost right, I just want to tweak a few words myself" case. Click **"返回对话" (Back to Chat)** to switch back at any time (your manual edits aren't lost).
 
-### 保存 vs 下载
+### Save vs. Download
 
-- **「下载 PDF」**：仅在浏览器里把当前内容编译成 PDF 并下载，**不会**存入历史简历。
-- **「保存」**：会在「历史简历」里新建一条记录（含 JD、公司/岗位识别结果、对话历史、Typst 源码），并编译上传对应的 PDF 文件。**只有保存过的简历才会出现在历史简历列表里**。
+- **"下载 PDF" (Download PDF)**: compiles the current content to a PDF in the browser and downloads it — it is **not** saved into resume history.
+- **"保存" (Save)**: creates a new entry in "Resume History" (including the JD, detected company/role, chat history, and Typst source), and compiles + uploads the corresponding PDF file. **Only saved resumes appear in the Resume History list.**
 
-## 历史简历详解
+## Resume History in Detail
 
-- 卡片信息：标题（优先显示"公司-岗位"，识别不出来就退回显示别名）、创建时间、JD 摘要。
-- **下载**：直接下载已保存的 PDF 文件。
-- **删除**：会同时删除数据库记录和磁盘上的 PDF 文件（有二次确认）。
-- **预览**：弹出大图预览当前的 Typst 编译结果。
-- **编辑并保存**（新功能）：预览弹窗右上角点**「编辑」**，会在预览左侧展开一个 Typst 源码编辑器（和"生成简历"页那个编辑器是同一套高亮实现），改动实时同步到旁边的预览；改完点**「保存」**——会把新的源码写回这条历史记录，并重新编译、替换掉对应的 PDF 文件。「取消编辑」或直接关闭弹窗时，如果有未保存的改动会先弹窗确认。
+- Card fields: title (prefers "company-role," falling back to whichever label is available), created-at timestamp, a truncated JD excerpt.
+- **Download**: downloads the saved PDF file directly.
+- **Delete**: removes both the database record and the PDF file on disk (with a confirmation prompt).
+- **Preview**: opens a large preview of the compiled Typst result.
+- **Edit and save** (new feature): click **"编辑" (Edit)** in the top-right of the preview modal to expand a Typst source editor (using the same highlighting setup as the Generate Resume page's editor) to the left of the preview — edits sync live to the preview next to it. Click **"保存" (Save)** to write the new source back into this history entry and recompile/replace the corresponding PDF file. Clicking "取消编辑" (Cancel Editing) or closing the modal while there are unsaved edits prompts a confirmation first.
 
-这让"生成完之后发现某个错别字/小问题"这种情况，不需要回到「生成简历」页重新走一遍生成流程，直接在历史记录里改就行。
+This means a small typo/fix discovered after the fact doesn't require going back through the whole Generate Resume flow — you can just fix it directly in the history entry.
 
-## 悬浮助手（右侧圆形 "AI" 按钮）
+## Floating Assistant (the round "AI" button on the right edge)
 
-这是一个和上面几个功能**完全独立**的小助手，专门用来调整这个工具自己的"行为设定"——也就是 `.claude/CLAUDE.md`（项目记忆）和 `.claude/skills/` 下的各个技能文档，比如"想让 AI 提取 highlight 时更严格地要求量化数字"、"想让生成简历时的加粗规则改一改"，都可以直接跟这个助手说，它会帮你去改对应的文档。
+This is a small assistant **entirely separate** from the features above — it's specifically for adjusting this tool's own "behavioral configuration," i.e. `.claude/CLAUDE.md` (project memory) and the skill documents under `.claude/skills/`. Things like "make highlight extraction push harder for quantified numbers" or "change the bolding rules used when generating a resume" can be said directly to this assistant, and it will go edit the corresponding documents for you.
 
-- **它看不到、也改不了这个工具自身的源代码或你的简历数据**——只能读写 `.claude/` 目录下的文件。
-- 点头部的**「+ 新对话」**可以重新开始一次干净的对话（会真正结束旧的会话，不只是清空显示）。
-- 支持 `@` 提及某个具体的 skill（比如 `@skills/resume-generation`）或 `@memory`（即 `CLAUDE.md`），让它只针对这一个目标做修改，不要动别的。
-- 对话记录保存在浏览器本地（不是数据库），所以清浏览器数据会丢失这个对话历史（但不影响你的简历/经历数据）。
+- **It cannot see or edit this tool's own source code, or your resume data** — it can only read/write files under `.claude/`.
+- The header's **"+ 新对话" (+ New Conversation)** button starts a genuinely fresh conversation (it actually ends the old session, not just clearing the display).
+- Supports `@` mentioning a specific skill (e.g. `@skills/resume-generation`) or `@memory` (i.e. `CLAUDE.md`), to scope its edits to exactly that target.
+- The chat history is stored in the browser locally (not the database), so clearing your browser data loses this chat history (but doesn't affect your resume/experience data).
 
-## 已知限制
+## Known Limitations
 
-- 没有 UI 可以设置"默认模板"（`isDefault`），尽管数据库和接口都已支持这个字段。
-- "生成简历"页的对话框不支持 @ 精确指定要修改简历的哪一部分，只能靠自然语言描述；"经历蒸馏"页则支持。
-- 应用内没有配置 Claude 访问方式（API Key / 登录）的界面，需要提前在系统层面配置好。
-- 这是一个单用户、纯本地运行的工具，没有账号系统、没有多用户隔离。
+- There's no UI to set a "default template" (`isDefault`), even though the database and API already support this field.
+- The Generate Resume page's chat doesn't support @-targeting a specific part of the resume to edit — only free-text description; the Experience Distillation page does support this.
+- There's no in-app UI for configuring Claude access (API key / login) — it must be configured at the system level beforehand.
+- This is a single-user, local-only tool with no account system and no multi-user isolation.

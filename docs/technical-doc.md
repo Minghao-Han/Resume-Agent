@@ -1,229 +1,233 @@
-# 技术文档
+# Technical Documentation
 
-面向后续维护/接手这个项目的开发者。涵盖：整体架构、技术栈、以及若干关键机制的具体实现方式（尤其是"未保存修改检测"这类容易被问到、但代码里分散在好几个文件的细节）。
+For developers maintaining or picking up this project. Covers: overall architecture, tech stack, and the concrete implementation of several key mechanisms (especially "unsaved-changes detection," which tends to get asked about but is spread across several files in the code).
 
-产品功能层面的说明见 [`user-manual.md`](./user-manual.md)。
+For product/feature-level documentation, see [`user-manual.md`](./user-manual.md).
+
+(中文版见 [`technical-doc.cn.md`](./technical-doc.cn.md)。)
 
 ---
 
-## 1. 项目定位
+## 1. Project Positioning
 
-个人、本地运行的全栈应用（Next.js + Prisma/SQLite），用于把一份 JD 定制成一页 Typst 简历。**单用户、无鉴权、无多租户**——`.claude/CLAUDE.md` 里明确写着这一点，Prisma schema 里也没有 `User` 模型，`PersonalInfo` 实质上是个单例表（代码里永远用 `findFirst`）。没有配置测试框架（无 jest/vitest/playwright），`README.md` 是未修改过的 `create-next-app` 模板。
+A personal, locally-run full-stack app (Next.js + Prisma/SQLite) for tailoring a resume to a specific JD. **Single-user, no auth, no multi-tenancy** — `.claude/CLAUDE.md` states this explicitly, the Prisma schema has no `User` model, and `PersonalInfo` is effectively a singleton table (the code always does `findFirst`). No test framework is configured (no jest/vitest/playwright), and `README.md` (before this doc was added) was an unmodified `create-next-app` template.
 
-## 2. 技术栈
+## 2. Tech Stack
 
-| 分类 | 依赖 | 版本 | 说明 |
+| Category | Dependency | Version | Notes |
 |---|---|---|---|
-| 框架 | `next` | 16.2.12 | App Router，只有 `src/app/`，无 `pages/` |
+| Framework | `next` | 16.2.12 | App Router, only `src/app/`, no `pages/` |
 | | `react` / `react-dom` | 19.2.4 | |
 | | `typescript` | ^5 | |
-| DB / ORM | `prisma` / `@prisma/client` | ^7.9.1 | generator 输出到 `src/generated/prisma`（非默认位置） |
-| | `@prisma/adapter-better-sqlite3` | ^7.9.1 | Prisma 7 的 driver adapter 模式，取代内置 query engine |
-| AI / Agent | `@anthropic-ai/claude-agent-sdk` | ^0.3.220 | 全部 AI 能力都走这一个包；**没有**直接用 `@anthropic-ai/sdk`（原生 Messages API） |
-| | `zod` | ^4.4.3 | API 路由入参校验 + agent 结构化输出校验 + MCP 工具 schema |
-| 编辑器/高亮 | `@uiw/react-codemirror` | ^4.25.11 | CodeMirror 6 的 React 封装 |
-| | `@codemirror/language` | ^6.12.4 | 仅用它的 `StreamLanguage`/`StreamParser` 搭自定义 Typst 高亮 |
-| Typst 编译 | `@myriaddreamin/typst.ts` | ^0.7.0 | 浏览器端 `$typst` 单例封装 |
-| | `@myriaddreamin/typst-ts-web-compiler` | ^0.7.0 | wasm 编译器二进制 |
-| | `@myriaddreamin/typst-ts-renderer` | ^0.7.0 | wasm 渲染器二进制 |
-| 样式 | `tailwindcss` / `@tailwindcss/postcss` | ^4 | v4 的 PostCSS 插件模式，无 `tailwind.config.js` |
-| 其它 | `uuid` | ^14.0.1 | |
-| | `dotenv` | ^17.4.2 | 仅 `prisma.config.ts` 显式引入，因为 Prisma CLI 上下文不走 Next.js 自己的 env 加载 |
+| DB / ORM | `prisma` / `@prisma/client` | ^7.9.1 | generator output redirected to `src/generated/prisma` (non-default location) |
+| | `@prisma/adapter-better-sqlite3` | ^7.9.1 | Prisma 7's driver-adapter pattern, replacing the bundled query engine |
+| AI / Agent | `@anthropic-ai/claude-agent-sdk` | ^0.3.220 | All AI capability goes through this one package; **no** direct use of `@anthropic-ai/sdk` (the raw Messages API) |
+| | `zod` | ^4.4.3 | API route input validation + agent structured-output validation + MCP tool schemas |
+| Editor / highlighting | `@uiw/react-codemirror` | ^4.25.11 | React wrapper for CodeMirror 6 |
+| | `@codemirror/language` | ^6.12.4 | Only used for `StreamLanguage`/`StreamParser`, to build the custom Typst highlighting mode |
+| Typst compiling | `@myriaddreamin/typst.ts` | ^0.7.0 | Browser-side `$typst` singleton wrapper |
+| | `@myriaddreamin/typst-ts-web-compiler` | ^0.7.0 | wasm compiler binary |
+| | `@myriaddreamin/typst-ts-renderer` | ^0.7.0 | wasm renderer binary |
+| Styling | `tailwindcss` / `@tailwindcss/postcss` | ^4 | v4's PostCSS-plugin setup, no `tailwind.config.js` |
+| Misc | `uuid` | ^14.0.1 | |
+| | `dotenv` | ^17.4.2 | Only explicitly imported in `prisma.config.ts`, since the Prisma CLI/config context doesn't go through Next.js's own env loading |
 
-**RSC 使用极少**：只有 `src/app/layout.tsx`（根布局）和 `src/app/page.tsx`（首页）是纯 Server Component；其余所有页面组件和共享组件都标了 `"use client"`。没有用 Server Actions，所有数据流都是"客户端组件 → `src/lib/apiClient.ts` → `src/app/api/*` 路由"这一条路径，没有走 RSC 的服务端数据获取。
+**RSC usage is minimal**: only `src/app/layout.tsx` (root layout) and `src/app/page.tsx` (home page) are plain Server Components; every other page and shared component is marked `"use client"`. No Server Actions are used — all data flows through the single path "client component → `src/lib/apiClient.ts` → `src/app/api/*` route" — there's no RSC-side server data fetching.
 
-## 3. 目录结构
+## 3. Directory Structure
 
 ```
-src/app/                    App Router 页面 + API 路由
-  experience/                「经历蒸馏」页
-  generate/                  「生成简历」页
-  profile/                   「个人信息」页
-  resumes/                   「历史简历」页
-  templates/                 「模板编辑」页
+src/app/                    App Router pages + API routes
+  experience/                Experience Distillation page
+  generate/                  Generate Resume page
+  profile/                   Profile page
+  resumes/                   Resume History page
+  templates/                 Templates page
   api/
-    assistant/               悬浮助手的对话接口（+ new-session, mentionables）
-    experience/distill/      经历蒸馏的对话接口（+ new-session）
-    experiences/[id]/        经历 CRUD
-    profile/                 个人信息 CRUD
-    resume/generate/         生成简历的对话接口（内部跑 autoConverge）
-    resumes/[id]/            历史简历 CRUD（+ pdf 子路由）
-    templates/[id]/          模板 CRUD（+ analyze 子路由）
+    assistant/               Floating-assistant chat endpoints (+ new-session, mentionables)
+    experience/distill/      Experience-distillation chat endpoints (+ new-session)
+    experiences/[id]/        Experience CRUD
+    profile/                 Profile CRUD
+    resume/generate/         Resume-generation chat endpoint (runs autoConverge internally)
+    resumes/[id]/            Resume-history CRUD (+ pdf sub-route)
+    templates/[id]/          Template CRUD (+ analyze sub-route)
 
 src/components/              AssistantDrawer / ChatPanel / NavBar / ToastHost / TypstPreview
 
-src/lib/                     跨功能工具：db.ts / apiClient.ts / apiError.ts /
+src/lib/                     Cross-cutting utilities: db.ts / apiClient.ts / apiError.ts /
                              defaultTemplate.ts / experienceApi.ts / toast.ts /
                              typstClient.ts / typstLanguage.ts / unsavedChanges.tsx /
                              useIsDarkMode.ts
 
-src/lib/agent/               所有 Claude Agent SDK 相关逻辑
-  core.ts                    最底层：runAgentTurn，封装 SDK 的 query()
-  assistant.ts                悬浮助手
-  starq.ts                    经历蒸馏（STAR-Q）
-  resumeGen.ts                 简历生成
-  autoConverge.ts               生成结果的自动收敛循环
-  charRange.ts                   纯数学：模板容量估算
-  templateCalibration.ts          模板"分析"功能
-  templateSanitize.ts             生成前的模板脱敏替换
-  typstOutput.ts / typstServerCompile.ts   服务端 Typst 编译与文本处理（无 SDK 调用）
+src/lib/agent/               All Claude Agent SDK logic
+  core.ts                    Lowest level: runAgentTurn, wraps the SDK's query()
+  assistant.ts                Floating assistant
+  starq.ts                    Experience distillation (STAR-Q)
+  resumeGen.ts                 Resume generation
+  autoConverge.ts               Auto-convergence loop for generated output
+  charRange.ts                   Pure math: template-capacity estimation
+  templateCalibration.ts          The "Analyze Template" feature
+  templateSanitize.ts             Template sanitization before generation
+  typstOutput.ts / typstServerCompile.ts   Server-side Typst compilation & text processing (no SDK calls)
 
-prisma/                      schema.prisma + migrations/（8 个迁移）
-.claude/                     CLAUDE.md（项目记忆）+ skills/（本工具自己的技能文档）
-public/typst/                两个 wasm 二进制的拷贝目标（postinstall 生成，不进 git）
-scripts/copy-typst-wasm.mjs  postinstall 脚本
-storage/resumes/             已保存简历的 PDF 文件，按 <id>.pdf 平铺存放
+prisma/                      schema.prisma + migrations/ (8 migrations)
+.claude/                     CLAUDE.md (project memory) + skills/ (this tool's own skill docs)
+public/typst/                Destination for the two wasm binaries (generated by postinstall, not in git)
+scripts/copy-typst-wasm.mjs  postinstall script
+storage/resumes/             Saved resumes' PDF files, flat directory as <id>.pdf
 ```
 
-## 4. 数据模型（`prisma/schema.prisma`）
+## 4. Data Model (`prisma/schema.prisma`)
 
-| 模型 | 关键字段 | 说明 |
+| Model | Key fields | Notes |
 |---|---|---|
-| `PersonalInfo` | name/phone/email/location/github/linkedin, `educations Education[]` | 实质单例（代码里始终 `findFirst`） |
-| `Education` | school/degree/major/startDate/endDate/region/relevantCourses/gpa/sortOrder | `onDelete: Cascade` 挂在 `PersonalInfo` 下 |
-| `Experience` | title/org/type/startDate/endDate/location/rawInput, `chatHistory String`（JSON 字符串）, `sessionId String?`, `highlights Highlight[]` | 一条 Experience 可以产出多条 Highlight（schema 注释明确说明） |
-| `Highlight` | situation/task/action/result/quantify/resumeBullet, `tags String`（JSON 字符串数组）, sortOrder | `onDelete: Cascade` 挂在 `Experience` 下 |
-| `ResumeTemplate` | name/typstSource, `isDefault Boolean`, `calibration String?`（JSON 字符串） | `calibration` 实际写入内容是 `{charRangeLow, charRangeHigh, realPageHeightPt, calibratedAt}`；schema 注释里描述的更复杂的形状是历史遗留/尚未实现的设想 |
+| `PersonalInfo` | name/phone/email/location/github/linkedin, `educations Education[]` | Effectively a singleton (code always uses `findFirst`) |
+| `Education` | school/degree/major/startDate/endDate/region/relevantCourses/gpa/sortOrder | `onDelete: Cascade` under `PersonalInfo` |
+| `Experience` | title/org/type/startDate/endDate/location/rawInput, `chatHistory String` (JSON string), `sessionId String?`, `highlights Highlight[]` | One Experience can produce multiple Highlights (explicitly documented in a schema comment) |
+| `Highlight` | situation/task/action/result/quantify/resumeBullet, `tags String` (JSON string array), sortOrder | `onDelete: Cascade` under `Experience` |
+| `ResumeTemplate` | name/typstSource, `isDefault Boolean`, `calibration String?` (JSON string) | `calibration` is actually written as `{charRangeLow, charRangeHigh, realPageHeightPt, calibratedAt}`; the richer shape described in the schema comment looks like a leftover/unimplemented earlier design |
 | `GeneratedResume` | label/jdSource/jdIsUrl/company/targetRoleTag/typstSource, `selectedHighlightIds String`, `chatHistory String`, `sessionId String?`, `pdfPath String?` | |
 
-**设计取舍**：所有需要存数组/对象的字段（`chatHistory`、`tags`、`selectedHighlightIds`、`calibration`）都用 `String` 存 JSON 序列化后的文本，而不是用 JSON 类型列——这是 SQLite + Prisma 常见的折衷写法，读写时手动 `JSON.parse`/`JSON.stringify`（每个用到的路由里都有一个本地 `serialize()` helper 做这件事，`src/app/api/resumes/route.ts`、`src/app/api/resumes/[id]/route.ts` 里各自重复了一份，未抽取公共模块）。
+**Design trade-off**: every field that needs to store an array/object (`chatHistory`, `tags`, `selectedHighlightIds`, `calibration`) is a `String` holding JSON-serialized text, rather than a native JSON column — a common SQLite + Prisma compromise, requiring manual `JSON.parse`/`JSON.stringify` on read/write (every route that needs this has a local `serialize()` helper — duplicated separately in `src/app/api/resumes/route.ts` and `src/app/api/resumes/[id]/route.ts`, not factored into a shared module).
 
-## 5. Claude Agent SDK 会话机制
+## 5. Claude Agent SDK Session Mechanics
 
-### 5.1 最底层：`runAgentTurn`（`src/lib/agent/core.ts`）
+### 5.1 The base layer: `runAgentTurn` (`src/lib/agent/core.ts`)
 
 ```
-PROJECT_ROOT = process.cwd()   // 作为每次调用的 cwd，让 SDK 能加载本仓库自己的
-                                // .claude/CLAUDE.md 和 .claude/skills/
+PROJECT_ROOT = process.cwd()   // used as cwd for every call, so the SDK loads
+                                // this repo's own .claude/CLAUDE.md and .claude/skills/
 ```
 
-`runAgentTurn(prompt, options)` 调用 SDK 的 `query({ prompt, options })`。关键点：
+`runAgentTurn(prompt, options)` calls the SDK's `query({ prompt, options })`. Key points:
 
-- 这是"**每个 HTTP 请求对应一次一次性的 SDK 调用**"的模型——不是长连接、不是常驻进程里的多轮状态机。SDK 会 spawn 或复用本机的 Claude Code CLI 子进程，"蹭"用户本机已登录的订阅账号。
-- 多轮对话的状态**不存在这个 Node 进程里**，而是活在 Claude Code CLI 自己的本地会话存储里（"each call is a short-lived subprocess, so multi-turn state lives in the CLI's own on-disk session store, not in this Node process" —— `core.ts` 原文注释）。续接靠传 `options.resume = sessionId`；应用自己的数据库/前端状态，**只存这个不透明的 sessionId 字符串**，从不在本地重放消息历史。
-- 并发：由于每次调用是独立子进程、以 `sessionId` 区分，不同 session 之间天然隔离；但代码里**没有对同一个 sessionId 的并发请求做互斥/排队**——因为这是单用户本地工具，默认不会有这种竞态场景。
-- 错误处理：整个 async generator 消费过程包在 try/catch 里，把子进程层面的异常（鉴权失败、速率限制、崩溃）统一转成 `{ isError: true }`，保证 API 路由永远能返回合法 JSON，不会抛出未处理的异常。
-- `permissionMode: "default"` 在每个业务模块里都显式设置——因为这是个无人值守的后端调用，没有 UI 能弹出权限确认框，所有工具调用的允许/拒绝必须完全靠 `canUseTool` 用代码判断完，见下节。
+- The model is "**one one-shot SDK call per HTTP request**" — not a long-lived connection, not a multi-turn state machine living in a resident process. The SDK spawns or reuses the local Claude Code CLI subprocess, riding the user's existing subscription login on this machine.
+- Multi-turn conversation state does **not** live in this Node process — it lives in the Claude Code CLI's own on-disk session store. (Source comment, verbatim: *"each call is a short-lived subprocess, so multi-turn state lives in the CLI's own on-disk session store, not in this Node process."*) Continuation is done by passing `options.resume = sessionId`; the app's own database/frontend state **only ever stores this opaque sessionId string**, never replaying message history locally.
+- Concurrency: since each call is an independent subprocess keyed by `sessionId`, different sessions are naturally isolated from each other — but there is **no mutex/queue** guarding concurrent requests against the *same* `sessionId`, since this is a single-user local tool where that race is not expected to matter.
+- Error handling: the entire async-generator consumption loop is wrapped in try/catch, converting subprocess-level exceptions (auth failures, rate limits, crashes) uniformly into `{ isError: true }`, so API routes never throw an unhandled rejection and can always return valid JSON.
+- `permissionMode: "default"` is explicitly set in every feature module's call — since this is an unattended backend call with no UI to pop a permission prompt, every tool-use allow/deny decision must be resolved entirely in code via `canUseTool` (see below).
 
-### 5.2 各业务模块如何在 `core.ts` 之上组合
+### 5.2 How feature modules compose on top of `core.ts`
 
-| 模块 | 用途 | system prompt | skills 白名单 | 工具白名单（canUseTool） |
+| Module | Purpose | System prompt | Skills allowlist | Tool allowlist (canUseTool) |
 |---|---|---|---|---|
-| `assistant.ts` | 悬浮助手，改 `.claude/` 下的文件 | Claude Code 官方 preset + 追加说明 | 不设（靠 `settingSources` 让它能发现所有 skill） | `Read/Write/Edit`（路径必须在 `.claude/` 内）+ 自定义 MCP 工具 `delete_claude_file` |
-| `starq.ts` | 经历蒸馏对话 | 自定义 system prompt | `resume-highlight-extraction`、`star-q-extraction`、`resume-bullet-writing` | 仅 `mcp__starq__submit_highlights` + `Skill` |
-| `resumeGen.ts` | 简历生成对话 | 自定义 system prompt，`model` 固定为 `claude-haiku-4-5-20251001`，`thinking: {type:"disabled"}` | `resume-content-and-jd-reading`、`resume-one-page-fitting`、`resume-generation`、`resume-bullet-writing` | 仅 `WebFetch/Skill/StructuredOutput` |
-| `autoConverge.ts` | 生成结果的自动多轮收敛 | 不直接调用 `core.ts`，而是复用 `resumeGen.ts` 的 `continueResumeGeneration` | — | — |
-| `charRange.ts` | 纯数学（容量估算） | 不涉及 SDK，刻意做成零依赖，避免 `templateCalibration.ts` 和 `resumeGen.ts` 之间循环引用 | — | — |
-| `templateCalibration.ts` | 「分析模板」功能 | 编排 `resumeGen.ts` + `autoConverge.ts` + `typstServerCompile.ts` + `charRange.ts`，直接读写 `prisma.resumeTemplate` | — | — |
-| `typstServerCompile.ts` / `typstOutput.ts` | 服务端 Typst 编译与文本清理 | 不涉及 SDK | — | — |
+| `assistant.ts` | Floating assistant, edits files under `.claude/` | Claude Code's official preset + appended scoping instructions | Not set (relies on `settingSources` so it can discover every skill) | `Read/Write/Edit` (path must resolve inside `.claude/`) + custom MCP tool `delete_claude_file` |
+| `starq.ts` | Experience-distillation chat | Custom system prompt | `resume-highlight-extraction`, `star-q-extraction`, `resume-bullet-writing` | Only `mcp__starq__submit_highlights` + `Skill` |
+| `resumeGen.ts` | Resume-generation chat | Custom system prompt, `model` pinned to `claude-haiku-4-5-20251001`, `thinking: {type:"disabled"}` | `resume-content-and-jd-reading`, `resume-one-page-fitting`, `resume-generation`, `resume-bullet-writing` | Only `WebFetch/Skill/StructuredOutput` |
+| `autoConverge.ts` | Auto multi-round convergence of generated output | Doesn't call `core.ts` directly — reuses `resumeGen.ts`'s `continueResumeGeneration` | — | — |
+| `charRange.ts` | Pure math (capacity estimation) | No SDK involvement, deliberately zero-dependency to avoid a circular import between `templateCalibration.ts` and `resumeGen.ts` | — | — |
+| `templateCalibration.ts` | The "Analyze Template" feature | Orchestrates `resumeGen.ts` + `autoConverge.ts` + `typstServerCompile.ts` + `charRange.ts`, reads/writes `prisma.resumeTemplate` directly | — | — |
+| `typstServerCompile.ts` / `typstOutput.ts` | Server-side Typst compilation and text cleanup | No SDK involvement | — | — |
 
-**为什么 `resumeGen.ts` 把模型钉死在 `claude-haiku-4-5-20251001` 并关掉 thinking**：文件内注释记录了一次真实的对比测量——不钉版本/开 thinking 时单轮 6900-9500 输出 tokens、耗时 70-110 秒；关掉之后单轮约 1800 tokens、约 20 秒。这是一个刻意的延迟/成本优化，不是默认行为。
+**Why `resumeGen.ts` pins the model to `claude-haiku-4-5-20251001` and disables thinking**: an in-file comment records a real measured comparison — without pinning/with thinking on, one round measured 6900–9500 output tokens and 70–110 seconds; with it off, roughly 1800 tokens and ~20 seconds. This is a deliberate latency/cost optimization, not default behavior.
 
-### 5.3 `canUseTool`：为什么必须存在
+### 5.3 `canUseTool`: why it has to exist
 
-这是全项目最重要的一条安全注释，出自 `resumeGen.ts`：
+This is the single most important safety comment in the codebase, from `resumeGen.ts`:
 
-> `tools`/`allowedTools` 只能限制 Claude Code **自带**的工具，**限制不了**通过 `settingSources` 继承进来的 MCP server 工具。曾经实测过：只设了 `tools: ["WebFetch", "Skill"]`、没设 `canUseTool` 的情况下，一次真实的生成调用直接调用了 `mcp__claude_ai_Google_Drive__create_file`，试图把简历写进用户真实的 Google Drive——而这和这个"窄用途" session 完全无关，本不该能碰到。
+> `tools`/`allowedTools` only restrict Claude Code's **own built-in** tools — they do **not** restrict MCP-server tools inherited via `settingSources`. Confirmed directly: with only `tools: ["WebFetch", "Skill"]` set and no `canUseTool`, a real generation call invoked `mcp__claude_ai_Google_Drive__create_file`, attempting to write the resume into the user's actual Google Drive — completely unrelated to this narrow-purpose session and never something it should be able to reach.
 
-因此每个业务模块都自己实现一个**默认拒绝（default-deny）的白名单** `canUseTool`，而不是尝试去"拉黑"所有已知的 MCP server——因为用户以后新装的任何 MCP 集成，若不用默认拒绝的思路，都会被无声地暴露给这些窄用途 session。三个模块的具体范围见上表最后一列。
+So every feature module implements its own **default-deny allowlist** `canUseTool`, rather than trying to "blocklist" every known MCP server — because any MCP integration the user adds later would otherwise be silently exposed to these narrow-purpose sessions if the approach weren't default-deny. See the last column of the table above for each module's exact scope.
 
-### 5.4 skills 白名单机制
+### 5.4 The skills-allowlist mechanism
 
-`skills: string[]` 是 SDK 提供的选项，用来限定这次 session 只能"看到"并通过 `Skill` 工具调用列出的这几个技能——不是"user 全局的 `~/.claude/skills`"或"Claude Code 自带技能"，而是精确限定到这个工具自己 `.claude/skills/` 下的、和当前任务相关的那几份。`STARQ_SKILLS`/`RESUME_GEN_SKILLS` 常量各自列出了自己需要的技能名；`assistant.ts` 不设这个选项，因为它本身的职责就是管理 `.claude/skills/` 目录，需要能发现全部技能。
+`skills: string[]` is an SDK option that scopes a session to only "see" and be able to invoke, via the `Skill` tool, the specific skills listed — not "the user's global `~/.claude/skills`" or "Claude Code's bundled skills," but precisely the ones under this app's own `.claude/skills/` that are relevant to the current task. `STARQ_SKILLS`/`RESUME_GEN_SKILLS` are the constants listing what each module needs; `assistant.ts` doesn't set this option at all, since its whole job is managing the `.claude/skills/` directory and it needs to discover every skill.
 
-`/api/assistant/mentionables` 路由则是**完全独立**的另一套逻辑：直接扫描磁盘上 `.claude/skills/` 目录（同时支持 `<name>/SKILL.md` 目录型和 `<name>.md` 扁平型两种布局），给悬浮助手的 `@` 自动补全提供候选列表——它和上面 SDK 的 `skills` 白名单没有直接关系，只是恰好都在读同一个目录。
+The `/api/assistant/mentionables` route is a **completely separate** mechanism: it walks the `.claude/skills/` directory on disk directly (supporting both the `<name>/SKILL.md` directory layout and the flat `<name>.md` layout) to populate the floating assistant's `@` autocomplete list — unrelated to the SDK's `skills` allowlist above except that they happen to read the same directory.
 
-## 6. Typst 编译：为什么客户端和服务端各有一套
+## 6. Typst Compiling: Why Both a Client and a Server Version Exist
 
-| | 客户端 (`src/lib/typstClient.ts`) | 服务端 (`src/lib/agent/typstServerCompile.ts`) |
+| | Client-side (`src/lib/typstClient.ts`) | Server-side (`src/lib/agent/typstServerCompile.ts`) |
 |---|---|---|
-| 运行环境 | 浏览器（`"use client"`） | Node（API 路由内） |
-| wasm 来源 | 静态文件 `/typst/*.wasm`（`postinstall` 拷贝进 `public/typst/`） | 直接从 `node_modules/@myriaddreamin/...` 磁盘路径读取 |
-| `@preview/...` 包解析 | 通过 `TypstSnippet.fetchPackageRegistry()`，走浏览器原生 `fetch` | 用 `execFileSync` **同步**调用 `curl` —— 原因见下 |
-| 用途 | `/generate`、`/templates`、`/resumes` 里 `TypstPreview` 组件的实时预览；客户端触发的 PDF 下载/上传 | `autoConverge.ts` 的收敛循环、`templateCalibration.ts` 的模板分析、`/api/resume/generate` 路由——这些都跑在没有浏览器/DOM 的 API 路由里，需要程序化地拿到页数/填充率这类度量 |
+| Runtime | Browser (`"use client"`) | Node (inside API routes) |
+| wasm source | Static files `/typst/*.wasm` (copied into `public/typst/` by `postinstall`) | Read directly from `node_modules/@myriaddreamin/...` on disk |
+| `@preview/...` package resolution | Via `TypstSnippet.fetchPackageRegistry()`, using the browser's native `fetch` | Via a **synchronous** call to `curl` through `execFileSync` — see reasoning below |
+| Used for | Live preview in `TypstPreview` on `/generate`, `/templates`, `/resumes`; client-triggered PDF download/upload | The `autoConverge.ts` convergence loop, `templateCalibration.ts`'s template analysis, the `/api/resume/generate` route — all of which run in API routes with no browser/DOM, and need programmatic page-count/fill-ratio measurements |
 
-**为什么服务端解包用同步 `curl` 而不是 `fetch`**：源码注释解释——Typst 编译器的 `PackageRegistry.resolve` 回调是从 wasm 模块内部**同步**调用的，而原生 `fetch` 永远是异步的，没法直接塞进这个同步回调里，所以退而求其次用 `execFileSync` 跑一个子进程 `curl`。
+**Why server-side package resolution uses a synchronous `curl` instead of `fetch`**: per the source comment — the Typst compiler's `PackageRegistry.resolve` callback is invoked **synchronously** from inside the wasm module, and native `fetch` is always asynchronous, so it can't be plugged directly into that synchronous callback. The fallback is `execFileSync` running a `curl` subprocess.
 
-服务端编译器额外提供了几个客户端没有的度量函数：
-- `countBodyChars`：给容量校准用的字数代理指标；
-- `insertAutoHeightOverride` + `measureAutoHeight`：在模板声明之后插入 `#set page(height: auto)`，无视原本的分页限制，测出内容**真实**需要多高（哪怕已经溢出了原本的一页）；
-- `measureRealPageHeight`：用一份几乎空的占位内容、按模板真实的纸张设置编译一次，反推出真实页高（单位 pt）——因为像 `paper: "us-letter"`这种参数是传给某个 import 进来的包函数的，从源码文本本身根本看不出实际页高是多少。
+The server-side compiler also exposes a few measurement functions the client-side one doesn't have:
+- `countBodyChars`: a character-count proxy used for capacity calibration;
+- `insertAutoHeightOverride` + `measureAutoHeight`: splices `#set page(height: auto)` in right after a template's own declarations, ignoring the normal page-break limit, to measure how tall the content **actually** needs to be (even if it's already overflowing the real one-page limit);
+- `measureRealPageHeight`: compiles the template once with near-empty placeholder content, at the template's real paper settings, to derive the true page height in points — since something like `paper: "us-letter"` is opaque at the source-text level when it's just an argument passed into an imported package function.
 
-## 7. PDF 存储
+## 7. PDF Storage
 
-`src/app/api/resumes/[id]/pdf/route.ts`：
+`src/app/api/resumes/[id]/pdf/route.ts`:
 
-- `PUT`：接收客户端已经编译好的 PDF 原始字节（`ArrayBuffer`），写入 `storage/resumes/<id>.pdf`，并把这个绝对路径记录进 `GeneratedResume.pdfPath`。
-- `GET`：按 `pdfPath` 读文件，以 `application/pdf` 流式返回，`Content-Disposition` 里的文件名固定写死成 `"resume.pdf"`——因为这个响应头的 `filename=` 只能是 Latin-1/ByteString，没法直接放中文标签。
-- 删除一条历史简历时会尝试 `unlink` 对应的 PDF 文件（best-effort，失败也不影响数据库记录的删除）。
+- `PUT`: accepts the raw PDF bytes already compiled client-side (`ArrayBuffer`), writes them to `storage/resumes/<id>.pdf`, and records that absolute path in `GeneratedResume.pdfPath`.
+- `GET`: reads the file by `pdfPath` and streams it back as `application/pdf`, with the `Content-Disposition` filename hardcoded to `"resume.pdf"` — because that header's `filename=` value must be Latin-1/ByteString, and a Chinese label can't go there directly.
+- Deleting a saved resume best-effort `unlink`s the corresponding PDF file (failure there doesn't block deleting the database record).
 
-## 8. 自动收敛算法（`src/lib/agent/autoConverge.ts`）
+## 8. The Auto-Convergence Algorithm (`src/lib/agent/autoConverge.ts`)
 
-**常量**：`MAX_AUTO_ROUNDS = 3`（首轮之外最多再修正 3 轮）、`MIN_FILL_RATIO = 0.9`（收敛的下限）、`TARGET_FILL_RATIO = 0.95`（修正时的目标，故意留一点余量，不卡在临界值上）。
+**Constants**: `MAX_AUTO_ROUNDS = 3` (up to 3 additional corrective rounds beyond the first), `MIN_FILL_RATIO = 0.9` (the convergence floor), `TARGET_FILL_RATIO = 0.95` (the correction target, deliberately a bit above the floor so a correction doesn't land right on the boundary).
 
-**每一轮怎么打分**（`checkFit` → `distanceToConverged`）：
+**How each round is scored** (`checkFit` → `distanceToConverged`):
 
-1. 服务端真正编译一次，拿到 `pageCount`；
-2. 用 `measureAutoHeight` 测出"不限制分页"时内容实际需要的高度，除以真实页高得到 `fillRatio`（这个值可以大于 1，代表溢出了多少）；
-3. 用 `countBodyChars` 数一下正文字符数。
+1. Compile the source for real on the server to get `pageCount`;
+2. Use `measureAutoHeight` to measure how tall the content needs to be with page breaks disabled, then divide by the real page height to get `fillRatio` (this can exceed 1, quantifying how far over the limit it is);
+3. Use `countBodyChars` to count the body character count.
 
-打分规则（越小越好）：`pageCount !== 1` 一律判定很差（`1000 + pageCount`，溢出页数越多分越差）；单页但 `fillRatio` 未知记 `500`；单页且 `fillRatio >= 0.9` 记 `0`（已收敛）；单页但没填满，记 `0.9 - fillRatio`（越接近 0.9 越好）。**任何"单页"的结果都一定比任何"溢出"的结果分数更好**。
+Scoring rule (lower is better): any `pageCount !== 1` scores badly (`1000 + pageCount` — more overflow pages score worse); single page but `fillRatio` unknown scores `500`; single page with `fillRatio >= 0.9` scores `0` (converged); single page but underfull scores `0.9 - fillRatio` (closer to 0.9 is better). **Any single-page result always beats any overflowing result.**
 
-**循环本身**（`runConvergenceLoop`）：从第一轮结果开始，只要还没收敛、还有剩余轮次、且上一轮没出错，就：
+**The loop itself** (`runConvergenceLoop`): starting from the first round's result, as long as it hasn't converged, rounds remain, and the previous round didn't error out, it:
 
-- 根据是溢出还是欠填，发一条"请压缩到一页"或"请填充空白"的修正消息给同一个 session（`resume: sessionId` 续接），消息里会带一个基于**本轮**数据换算出来的目标字数（`charCount / fillRatio * TARGET_FILL_RATIO`——逻辑是"如果这么多字撑出了这个填充率，那么填充率恰好是 100% 时大概需要多少字"）；
-- 把新一轮的结果和打分都记下来，继续判断是否收敛。
+- Sends a "please shorten to one page" or "please fill the empty space" corrective message to the *same* session (continued via `resume: sessionId`), depending on whether the issue is overflow or underfill — each including a target character count computed from **that round's own** data (`charCount / fillRatio * TARGET_FILL_RATIO` — the logic being "if this many characters produced this fill ratio, roughly how many characters would be needed to reach exactly 100%");
+- Records the new round's result and score, and checks convergence again.
 
-**最终选哪一轮**：遍历所有轮次的打分，取分数最小的那一轮，**不是简单取最后一轮**——因为修正有可能"矫枉过正"（比如为了压缩到一页反而删过头，或者为了填满反而溢出到第二页），所以要显式比较。前端会把每一轮都作为对话消息展示出来（非首轮会加"自动调整："前缀），这样用户能看到中间过程，即使最终采用的不是最后一条。
+**Which round is finally used**: whichever round has the lowest score across all of them — **not simply the last round** — since a correction can overshoot (e.g. compressing too aggressively to fit one page, or overflowing to a second page while trying to fill space), so the scores are explicitly compared. The frontend shows every round as a chat message (non-first rounds prefixed "自动调整："/"Auto-adjustment:"), so you can see the intermediate process even when the final one used isn't the last message shown.
 
-`charRange.ts` 的 `estimateTargetCharCount` 是另一套独立逻辑，只在**生成前**、构造第一轮 prompt 时用一次，依据的是模板的历史校准区间（`{charRangeLow, charRangeHigh}` 的中点，或只有单边已知时按 1.15/0.85 系数外推），和上面这个"每轮根据实际数据现算"的逻辑完全独立，不要混为一谈。
+`charRange.ts`'s `estimateTargetCharCount` is a separate mechanism, used only once, **before** generation, when building the very first prompt — based on the template's historical calibration range (the midpoint of `{charRangeLow, charRangeHigh}`, or extrapolated by a 1.15/0.85 factor if only one bound is known). It's entirely independent from the "compute fresh from this round's actual data" logic above — don't conflate the two.
 
-## 9. 模板校准与脱敏
+## 9. Template Calibration and Sanitization
 
-- **校准**（`templateCalibration.ts`）：`analyzeTemplate` 拿一份内置的、内容比较丰富的虚构数据（`FAKE_PERSONAL_INFO`/`FAKE_EXPERIENCES`/`FAKE_JD`）跑一次**真实**的生成 + 收敛循环，把每一轮真实测得的 `(charCount, fillRatio, pageCount)` 都喂给 `charRange.ts` 的 `narrowRange`（不只取最后一轮），逐步收窄这个模板"一页大概能装多少字"的区间估计，连同一次性测出的 `realPageHeightPt` 一起存进 `ResumeTemplate.calibration`。重复点"分析"是在已有区间基础上继续收窄，不是每次都推倒重来。
-- **脱敏**（`templateSanitize.ts`）：在模板源码真正进入生成 prompt 之前，用正则把形如 `#let name = "..."` 这类变量绑定，按变量名（`name/fullname/author`、`email/mail`、`phone/tel/mobile`、`location/address`、`github`、`linkedin`、`website/homepage/portfolio/twitter`）机械替换成当前登录用户的真实个人信息（或置空）。做这一层的原因：用户经常会拿一份"已经填过别人真实信息"的模板直接用，而"每次都指望模型自己记得要把这些替换掉"在实测中不够可靠，所以加了这层确定性的兜底，不完全依赖 prompt。
+- **Calibration** (`templateCalibration.ts`): `analyzeTemplate` runs one **real** generation + convergence pass against built-in, fairly rich fake data (`FAKE_PERSONAL_INFO`/`FAKE_EXPERIENCES`/`FAKE_JD`), feeds every round's real measured `(charCount, fillRatio, pageCount)` into `charRange.ts`'s `narrowRange` (not just the last round), progressively narrowing the estimated range of "how much text fits on one page" for this template, and stores it together with the once-measured `realPageHeightPt` into `ResumeTemplate.calibration`. Re-running "Analyze" narrows the existing range further rather than resetting from scratch each time.
+- **Sanitization** (`templateSanitize.ts`): before a template's source ever reaches the generation prompt, a regex pass mechanically replaces `#let <name> = "..."`-style variable bindings — whose lowercased name matches a known personal-info pattern (`name/fullname/author`, `email/mail`, `phone/tel/mobile`, `location/address`, `github`, `linkedin`, `website/homepage/portfolio/twitter`) — with the currently logged-in user's actual personal info (or blank). The reason this exists: users often start from a template that already has someone else's real info baked in, and "relying on the model to always remember to swap those out" proved unreliable in testing — so this deterministic mechanical safety net was added rather than depending entirely on the prompt.
 
-## 10. 未保存修改（unsaved changes）检测机制
+## 10. Unsaved-Changes Detection Mechanism
 
-完整实现在 `src/lib/unsavedChanges.tsx`。
+Full implementation in `src/lib/unsavedChanges.tsx`.
 
-**整体设计**：全局只有**一个** `UnsavedChangesContext`（`{isDirty, setDirty}`），而不是每个页面各自维护一份——原因是"同一时间只会有一个页面挂载着（普通的路由跳转会先卸载上一个页面），所以一个共享的全局标志位就够用了"（源码注释原话）。
+**Overall design**: there is exactly **one** global `UnsavedChangesContext` (`{isDirty, setDirty}`), rather than each page keeping its own — the reasoning, per the source comment, is that "only one page is ever mounted at a time (plain route navigation unmounts the previous one), so a single shared flag is enough."
 
-**页面怎么上报"脏"状态**：每个页面自己算出一个 `isDirty` 布尔值，通过 `useReportDirty(isDirty)` 这个 hook 上报——内部是一个 `useEffect`，值变化时调用 `setDirty(isDirty)`，**组件卸载时无条件调用 `setDirty(false)`**（防止离开页面时忘记清掉标志位）。
+**How a page reports "dirty" state**: each page computes its own `isDirty` boolean and reports it via `useReportDirty(isDirty)` — internally a `useEffect` that calls `setDirty(isDirty)` on change, and **unconditionally calls `setDirty(false)` on unmount** (so leaving a page always clears the flag, even if the page forgot to itself).
 
-**四个页面各自怎么算 `isDirty`（写法并不统一，取决于该页面状态的形状）**：
+**How each of the four pages computes `isDirty` (the shape isn't uniform — it depends on that page's state shape)**:
 
-| 页面 | 判断方式 |
+| Page | How it's computed |
 |---|---|
-| `/generate` | `typstSource !== "" && typstSource !== savedTypstSnapshot` —— 纯字符串比较，且显式排除"还没生成过、初始空字符串"这种假阳性 |
-| `/templates` | `name !== savedSnapshot.name \|\| source !== savedSnapshot.source` —— 对一个 `{name, source}` 快照对象逐字段比较 |
-| `/profile` | `!loading && JSON.stringify(profile) !== JSON.stringify(savedSnapshot)` —— 整个对象 `JSON.stringify` 后比较，用 `!loading` 防止首次拉取数据完成前被误判为"脏" |
-| `/experience` | `JSON.stringify(current) !== JSON.stringify(savedSnapshot)` —— 和 `/profile` 同样的整体 JSON 比较写法 |
+| `/generate` | `typstSource !== "" && typstSource !== savedTypstSnapshot` — a plain string comparison against a saved snapshot, with an explicit guard against the initial empty-string state counting as a false positive |
+| `/templates` | `name !== savedSnapshot.name \|\| source !== savedSnapshot.source` — field-by-field comparison against a `{name, source}` snapshot object |
+| `/profile` | `!loading && JSON.stringify(profile) !== JSON.stringify(savedSnapshot)` — whole-object JSON-string comparison, gated on `!loading` to prevent a false positive before the initial fetch completes |
+| `/experience` | `JSON.stringify(current) !== JSON.stringify(savedSnapshot)` — same whole-object JSON comparison pattern as `/profile` |
 
-**实际拦截行为分两层**：
+**The actual interception happens in two layers**:
 
-1. **整页刷新/关闭/地址栏跳转**：`UnsavedChangesProvider` 挂了一个真正的 `window.addEventListener("beforeunload", ...)`——`isDirty` 为真时 `preventDefault()` 并把 `e.returnValue` 设成空字符串（浏览器会自己展示统一措辞的确认框，弹窗文案本身是各浏览器自己控制的，不受这里传的字符串内容影响，这里只是 Chrome 要求必须赋值这个字段）。
-2. **应用内的客户端路由跳转**：**没有**在路由层面做拦截（没有包一层 `router.push`，也没有用 Next.js 的导航守卫钩子）。而是纯手工的"context + `confirm()`"模式——`NavBar.tsx` 里的 `go(href)` 函数在真正调用 `router.push(href)` 之前，先读一次 `useUnsavedChanges()` 里的 `isDirty`，是的话弹 `confirm(UNSAVED_CHANGES_MESSAGE)`，用户点取消就 `return` 不跳转。这**只覆盖通过 `NavBar` 自身按钮发起的跳转**（不过目前全站的导航入口确实也只有 `NavBar`）。各页面自己内部的"危险操作"（切换到别的模板/经历、发起重新生成）也各自在触发前手动 `confirm()` 同一句提示语，属于同一套模式的局部复用，不是自动生效的。
+1. **Full page reload / close / address-bar navigation**: `UnsavedChangesProvider` attaches a real `window.addEventListener("beforeunload", ...)` — if `isDirty`, it calls `e.preventDefault()` and sets `e.returnValue = ""` (the browser shows its own standard confirmation dialog; the actual wording is controlled by the browser, not by the string passed here — Chrome just requires `returnValue` to be assigned something).
+2. **In-app client-side route navigation**: **not** intercepted at the router level (there's no wrapped `router.push`, no Next.js navigation-guard hook). Instead it's a plain "context + `confirm()`" pattern — `NavBar.tsx`'s `go(href)` function reads `isDirty` from `useUnsavedChanges()` before actually calling `router.push(href)`, and if it's true, calls `confirm(UNSAVED_CHANGES_MESSAGE)`; if the user cancels, it just `return`s without navigating. This **only covers navigation triggered through `NavBar`'s own buttons** (though in practice `NavBar` is the app's only navigation surface). Individual pages also manually `confirm()` the same message string before their own in-page "dangerous" actions (switching to a different template/experience, starting a fresh generation) — that's a local reuse of the same pattern, not something that fires automatically.
 
-`UNSAVED_CHANGES_MESSAGE` 是写死的中文字符串：`"有未保存的修改，离开后将会丢失，确定要离开吗？"`。
+`UNSAVED_CHANGES_MESSAGE` is a hardcoded Chinese string: `"有未保存的修改，离开后将会丢失，确定要离开吗？"` ("There are unsaved changes that will be lost if you leave — are you sure?").
 
-## 11. 其它值得记录的机制
+## 11. Other Notable Mechanisms
 
-**Session ID 存哪：数据库列 vs. localStorage**——`Experience.sessionId`、`GeneratedResume.sessionId` 都存成数据库字段，因为这两类对话都绑定着一条具体的、永久的数据记录（某条经历的蒸馏对话、某份简历的定制对话），只要这条记录还在，就应该能在任何时候重新打开、无缝续接。悬浮助手则相反——它不属于任何一条具体数据，是一个跨页面的全局小工具，所以它的 `{sessionId, messages}` 存在浏览器 `localStorage`（key: `resume-agent:assistant-drawer`），另外还单独存了一个 `resume-agent:assistant-drawer-y` 记录它被拖拽到的垂直位置。
+**Session ID storage: database column vs. localStorage** — `Experience.sessionId` and `GeneratedResume.sessionId` are both stored as database columns, because those two chats are each tied to a specific, permanent data row (a specific experience's distillation chat, or a specific generated resume's tailoring chat) that should be resumable at any time as long as that row exists. The floating assistant is the opposite — it isn't tied to any one piece of data, it's a single cross-page global utility — so its `{sessionId, messages}` live in browser `localStorage` (key: `resume-agent:assistant-drawer`), with a separate `resume-agent:assistant-drawer-y` key just recording its dragged vertical position.
 
-**Typst 语法高亮**（`src/lib/typstLanguage.ts`）——明确是一个轻量的手写 tokenizer，不是完整语法解析：基于 `@codemirror/language` 的 `StreamLanguage.define`，状态只跟踪"是否在块注释里"这一个标志位。能识别：块/行注释、行首 `=` 开头的标题、字符串、`$...$` 数学（不处理嵌套 `$`）、`` `代码` `` raw span、`<label>`、`@citation`、`#`（代码模式入口，标成 keyword）、带 Typst 单位后缀的数字（`pt/em/cm/mm/in/fr/deg/rad/%`）、固定关键字集合（`let/set/show/import/include/if/else/for/while/return/break/continue/in/not/and/or/none/auto/true/false/as/context`），以及 `*粗体*`/`_斜体_`。源码自己的注释也承认"不是完整语法，只是刚好够让模板编辑器可读"。
+**Typst syntax highlighting** (`src/lib/typstLanguage.ts`) — explicitly a lightweight hand-written tokenizer, not a full grammar: built on `@codemirror/language`'s `StreamLanguage.define`, with state tracking only one flag ("currently inside a block comment"). It recognizes: block/line comments, `=`-prefixed headings at the start of a line, string literals, `$...$` inline math (deliberately no nested-`$` handling), `` `code` `` raw spans, `<label>` references, `@citation` references, `#` (code-mode entry, tagged as a keyword), numeric literals with Typst unit suffixes (`pt/em/cm/mm/in/fr/deg/rad/%`), a fixed keyword set (`let/set/show/import/include/if/else/for/while/return/break/continue/in/not/and/or/none/auto/true/false/as/context`), and `*bold*`/`_emphasis_` markup spans. The source's own comment admits it's "not a full grammar, just enough to make the template editor readable."
 
-**深色模式检测**（`src/lib/useIsDarkMode.ts`）——纯靠 `window.matchMedia("(prefers-color-scheme: dark)")`，挂载时读一次、之后监听 `change` 事件保持同步；**没有**手动切换按钮，也不往 `<html>` 上加/删 class。`TypstPreview`、CodeMirror 实例这类不方便用 Tailwind `dark:` 类名的地方，直接用这个 hook 返回的布尔值选主题；页面里其它普通元素仍然走 Tailwind 自己的 `dark:` 变体（同样是跟随系统的 `prefers-color-scheme`，没有引入 `next-themes` 之类的库）。
+**Dark mode detection** (`src/lib/useIsDarkMode.ts`) — purely media-query based: `window.matchMedia("(prefers-color-scheme: dark)")`, read once on mount and kept in sync via a `change` listener; there's **no** manual toggle, and no class is added/removed on `<html>`. Places that can't conveniently use Tailwind's `dark:` variant (`TypstPreview`, the CodeMirror instances) use this hook's boolean directly to choose a theme; other ordinary elements still use Tailwind's own `dark:` variant (also following `prefers-color-scheme`, with no `next-themes`-style library involved).
 
-**错误处理约定**——服务端 `src/lib/apiError.ts` 的 `errorResponse(err)`：`ZodError` 转成 `{error: "Invalid request", issues}`、400；其它一律 `{error: message}`、500——保证 API 路由永远返回合法 JSON，不会让 Next.js 默认的 HTML/空响应漏到前端。客户端 `src/lib/apiClient.ts` 的 `parseJsonResponse` 先读成文本再 `JSON.parse`，解析失败或 `!res.ok` 时统一抛出可捕获的 `ApiError`（尽量带上服务端返回的 `error` 字段作为消息），所有 `apiGet/apiPost/apiPut/apiDelete/apiPutBinary` 调用方都可以用 `err instanceof ApiError` 判断是不是一个"预期内"的业务错误。
+**Error-handling convention**:
+- Server: `src/lib/apiError.ts`'s `errorResponse(err)` — a `ZodError` becomes `{error: "Invalid request", issues}` with status 400; anything else becomes `{error: message}` with status 500 — guaranteeing API routes always return valid JSON on failure instead of letting Next.js's default HTML/empty error response reach the frontend.
+- Client: `src/lib/apiClient.ts`'s `parseJsonResponse` reads the response as text first, then `JSON.parse`s it, throwing a catchable `ApiError` if parsing fails or `!res.ok` (preferring the server's `error` field as the message when present). Every `apiGet/apiPost/apiPut/apiDelete/apiPutBinary` call funnels through this, so callers can uniformly check `err instanceof ApiError` to distinguish an "expected" business error.
 
-## 12. 测试与部署
+## 12. Testing and Deployment
 
-- 当前**没有配置任何测试框架**（无 jest/vitest/playwright，无 `*.test.ts`），`package.json` 的 `scripts` 只有 `dev/build/start/lint/postinstall`。
-- 部署形态：本机 `next dev`（开发）或 `next build && next start`（生产模式，但仍是本机单进程），不是为多用户/云端部署设计的——没有鉴权、没有按用户隔离数据，`README.md` 也还是未修改的脚手架模板。
+- **No test framework is configured at all** (no jest/vitest/playwright, no `*.test.ts` files); `package.json`'s `scripts` only has `dev/build/start/lint/postinstall`.
+- Deployment shape: local `next dev` (development) or `next build && next start` (production mode, but still a single local process) — not designed for multi-user/cloud deployment. There's no auth and no per-user data isolation.
 
-## 13. 已知的技术债 / 值得关注的点
+## 13. Known Technical Debt / Things to Watch
 
-- `serialize()`（JSON 字段反序列化 helper）在 `src/app/api/resumes/route.ts` 和 `src/app/api/resumes/[id]/route.ts` 里各自复制了一份，没有抽到公共模块。
-- `ResumeTemplate.calibration` 字段的 schema 注释描述的形状（`{intercept, perEntry, perBullet, perChar, ...}`）和实际写入的形状（`{charRangeLow, charRangeHigh, realPageHeightPt, calibratedAt}`）不一致，注释像是早期设计遗留，未同步更新。
-- 同一个 `sessionId` 理论上可能被并发请求同时续接（比如用户手快连点两次"重新生成"），代码里没有互斥保护——单用户场景下概率低，但不是完全不可能触发。
+- `serialize()` (the JSON-field deserialization helper) is duplicated separately in `src/app/api/resumes/route.ts` and `src/app/api/resumes/[id]/route.ts`, rather than factored into a shared module.
+- `ResumeTemplate.calibration`'s schema comment describes a shape (`{intercept, perEntry, perBullet, perChar, ...}`) that doesn't match what's actually written (`{charRangeLow, charRangeHigh, realPageHeightPt, calibratedAt}`) — the comment looks like an earlier design that was never updated.
+- The same `sessionId` could in theory be resumed by two concurrent requests (e.g. a user double-clicking "Regenerate" quickly) — there's no mutex protection in code. Low probability in a single-user context, but not impossible.
