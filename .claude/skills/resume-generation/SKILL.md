@@ -33,23 +33,32 @@ template to use as a style reference:
    or detailed. The `resumeBullet` is the already-finalized, user-approved output; the STAR-Q fields
    are your raw material for understanding context, not a second draft to blend in.
    - The ONLY valid reasons to deviate from `resumeBullet` verbatim: (a) it's too long and must be
-     shortened to fit the page — trim words, don't rewrite from scratch; (b) the JD needs a specific
-     emphasis or keyword that `resumeBullet` genuinely omits AND that emphasis/keyword is not
-     something you can get from a different, unused highlight instead.
+     shortened to fit the page — trim words, don't rewrite from scratch, and keep the verb/result/
+     number intact per `resume-bullet-writing`; (b) the JD needs a specific emphasis or keyword that
+     `resumeBullet` genuinely omits AND that emphasis/keyword is not something you can get from a
+     different, unused highlight instead — see `resume-bullet-writing` for how to weave a keyword in
+     without it reading as bolted on.
    - "This JD is about backend/distributed systems/security/etc." is NOT by itself unusual enough to
      justify a rewrite — most JDs will loosely match the general theme of a highlight. Only rewrite
      when the stored bullet would actively mislead or omit something the JD explicitly asks for.
    - Never paste the raw STAR-Q fields verbatim, and never fabricate new specifics (a technique name,
      a percentage, a response time) that appear nowhere in `resumeBullet` even if they're accurate
      per the underlying fields — if it's not in `resumeBullet`, treat it as off-limits by default.
-4. Produce a complete, compilable Typst source (`.typ`) for the resume, following the structure/style
-   of the provided template, that fits on **one page**.
-5. If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest
+4. Within each experience/project's bullet list, order bullets by importance/relevance to the JD, most
+   impressive or relevant first — a reader scanning quickly should hit the strongest result before
+   anything else (see the ordering and formatting-consistency rules in `resume-bullet-writing`).
+5. Produce a complete, compilable Typst source (`.typ`) for the resume, following the structure/style
+   of the provided template, that fits on **one page**. Use one consistent bullet marker/list style
+   throughout the whole document (don't mix `-`, `•`, numbered, etc.).
+6. If told the compiled output is more than one page, cut content (shorten bullets, drop the weakest
    highlight) rather than shrinking font/margins below readable sizes — when cutting, drop project
    highlights before work-experience highlights of similar relevance. Never cut a work-experience
    highlight to keep a lower-relevance project highlight.
 
-Never invent experience, employers, dates, or numbers that are not in the saved data.
+Never invent experience, employers, dates, or numbers that are not in the saved data. When trimming a
+bullet to fit the page, only use JD keywords the highlight's own content genuinely supports — don't
+insert a JD term just because it's in the JD; a keyword only belongs in a bullet if it's naturally part
+of the achievement being described, not tacked on for ATS matching (see `resume-bullet-writing`).
 
 ## Bold formatting
 

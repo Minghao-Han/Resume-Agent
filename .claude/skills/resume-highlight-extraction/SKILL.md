@@ -27,10 +27,11 @@ person (or the writer) round a claim up past what actually happened.
    it's faster for the person to react to options than generate them from scratch.
 4. **Deep-dive each candidate with STAR-Q** (below), one at a time, explicitly
    flagging what's missing rather than filling gaps yourself.
-5. **Draft the bullet, verify with the person, then move to the next.** Never
-   batch-draft final bullets before the underlying facts are confirmed — an
-   impressive-sounding bullet built on an assumption is worse than a modest one
-   built on fact, because it will collapse under an interview follow-up question.
+5. **Draft the bullet, verify with the person, then move to the next.** Follow
+   `resume-bullet-writing` for how to phrase it. Never batch-draft final bullets
+   before the underlying facts are confirmed — an impressive-sounding bullet
+   built on an assumption is worse than a modest one built on fact, because it
+   will collapse under an interview follow-up question.
 6. **Export/format last**, once the person has reacted to the drafts.
 
 ## Five lenses for finding highlights in raw material
@@ -72,8 +73,9 @@ Standard STAR, plus a Q step that STAR alone tends to skip:
   (distinct from what the team's goal was)?
 - **A — Action**: What did they specifically do? Use strong, precise verbs (led,
   designed, diagnosed, migrated) — not vague ones (helped with, worked on,
-  participated in). If the source material is vague about the verb, ask; don't
-  guess a stronger one than what happened.
+  participated in); see `resume-bullet-writing` for verb choice. If the source
+  material is vague about the verb, ask; don't guess a stronger one than what
+  happened.
 - **R — Result**: What changed because of the action? Prefer outcomes over
   activities ("balance errors eliminated," not "wrote code").
 - **Q — Quantify**: Push for a number — scale, time, percentage, dollar amount,
