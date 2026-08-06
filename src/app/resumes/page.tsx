@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CodeMirror from "@uiw/react-codemirror";
 import { TypstPreview } from "@/components/TypstPreview";
-import { apiGet, apiDelete } from "@/lib/apiClient";
+import { typstLanguage } from "@/lib/typstLanguage";
+import { useIsDarkMode } from "@/lib/useIsDarkMode";
+import { compileTypstPdf } from "@/lib/typstClient";
+import { toast } from "@/lib/toast";
+import { ApiError, apiGet, apiDelete, apiPut, apiPutBinary } from "@/lib/apiClient";
+import { UNSAVED_CHANGES_MESSAGE } from "@/lib/unsavedChanges";
 
 type GeneratedResume = {
   id: string;
@@ -20,6 +26,9 @@ type GeneratedResume = {
 // it doesn't feel like a narrow portrait strip on wide screens — TypstPreview
 // centers the page within the extra space (see `centered` prop below).
 const PREVIEW_WIDTH_BOOST = 1.4;
+// Extra width added to the modal when the Typst source editor is expanded
+// to the left of the preview.
+const EDITOR_WIDTH = 420;
 
 function titleFor(r: GeneratedResume) {
   if (r.company && r.targetRoleTag) return `${r.company}-${r.targetRoleTag}`;
@@ -31,6 +40,13 @@ export default function ResumesPage() {
   const [resumes, setResumes] = useState<GeneratedResume[]>([]);
   const [previewResume, setPreviewResume] = useState<GeneratedResume | null>(null);
   const [previewAspect, setPreviewAspect] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editedSource, setEditedSource] = useState("");
+  const [savedEditSnapshot, setSavedEditSnapshot] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const isDark = useIsDarkMode();
+
+  const isEditDirty = editing && editedSource !== savedEditSnapshot;
 
   async function refresh() {
     setResumes(await apiGet<GeneratedResume[]>("/api/resumes"));
@@ -40,14 +56,20 @@ export default function ResumesPage() {
     refresh();
   }, []);
 
+  function closePreview() {
+    if (isEditDirty && !confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    setPreviewResume(null);
+    setEditing(false);
+  }
+
   useEffect(() => {
     if (!previewResume) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setPreviewResume(null);
+      if (e.key === "Escape") closePreview();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [previewResume]);
+  }, [previewResume, isEditDirty]);
 
   async function remove(id: string) {
     if (!confirm("删除这份简历？")) return;
@@ -58,6 +80,40 @@ export default function ResumesPage() {
   function openPreview(r: GeneratedResume) {
     setPreviewAspect(null);
     setPreviewResume(r);
+    setEditing(false);
+    setEditedSource(r.typstSource);
+    setSavedEditSnapshot(r.typstSource);
+  }
+
+  function toggleEditing() {
+    if (editing) {
+      if (isEditDirty && !confirm(UNSAVED_CHANGES_MESSAGE)) return;
+      setEditing(false);
+      return;
+    }
+    setEditedSource(previewResume?.typstSource ?? "");
+    setSavedEditSnapshot(previewResume?.typstSource ?? "");
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!previewResume) return;
+    setSavingEdit(true);
+    try {
+      const updated = await apiPut<GeneratedResume>(`/api/resumes/${previewResume.id}`, {
+        typstSource: editedSource,
+      });
+      const pdfBytes = await compileTypstPdf(editedSource);
+      await apiPutBinary(`/api/resumes/${previewResume.id}/pdf`, pdfBytes as BodyInit, "application/pdf");
+      setPreviewResume(updated);
+      setResumes((list) => list.map((r) => (r.id === updated.id ? updated : r)));
+      setSavedEditSnapshot(editedSource);
+      toast("已保存");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "保存失败，请重试");
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   return (
@@ -97,34 +153,67 @@ export default function ResumesPage() {
       </div>
 
       {previewResume && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-          onClick={() => setPreviewResume(null)}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={closePreview}>
           <div
             className="relative h-dvh bg-white dark:bg-neutral-900"
             style={
               previewAspect
-                ? { width: `calc(100dvh * ${previewAspect * PREVIEW_WIDTH_BOOST})` }
-                : { width: "60vw" }
+                ? { width: `calc(100dvh * ${previewAspect * PREVIEW_WIDTH_BOOST} + ${editing ? EDITOR_WIDTH : 0}px)` }
+                : { width: editing ? "85vw" : "60vw" }
             }
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="absolute right-2 top-2 z-10 rounded-full bg-black/60 px-3 py-1 text-sm text-white hover:bg-black/80"
-              onClick={() => setPreviewResume(null)}
-            >
-              关闭
-            </button>
-            <TypstPreview
-              source={previewResume.typstSource}
-              className="h-full"
-              centered
-              onCompiled={(info) => {
-                if (info.width && info.height) setPreviewAspect(info.width / info.height);
-              }}
-            />
+            <div className="absolute right-2 top-2 z-10 flex gap-2">
+              {editing && (
+                <button
+                  type="button"
+                  className="rounded-full bg-black/60 px-3 py-1 text-sm text-white hover:bg-black/80 disabled:opacity-50"
+                  onClick={saveEdit}
+                  disabled={savingEdit || !isEditDirty}
+                >
+                  {savingEdit ? "保存中…" : "保存"}
+                </button>
+              )}
+              <button
+                type="button"
+                className="rounded-full bg-black/60 px-3 py-1 text-sm text-white hover:bg-black/80"
+                onClick={toggleEditing}
+              >
+                {editing ? "取消编辑" : "编辑"}
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-black/60 px-3 py-1 text-sm text-white hover:bg-black/80"
+                onClick={closePreview}
+              >
+                关闭
+              </button>
+            </div>
+            <div className="flex h-full">
+              {editing && (
+                <div
+                  className="shrink-0 overflow-hidden border-r border-neutral-200 dark:border-neutral-800"
+                  style={{ width: EDITOR_WIDTH }}
+                >
+                  <CodeMirror
+                    value={editedSource}
+                    height="100%"
+                    theme={isDark ? "dark" : "light"}
+                    extensions={[typstLanguage]}
+                    onChange={(value) => setEditedSource(value)}
+                    style={{ height: "100%", fontSize: 13 }}
+                  />
+                </div>
+              )}
+              <TypstPreview
+                source={editing ? editedSource : previewResume.typstSource}
+                className="h-full min-w-0 flex-1"
+                centered
+                onCompiled={(info) => {
+                  if (info.width && info.height) setPreviewAspect(info.width / info.height);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
