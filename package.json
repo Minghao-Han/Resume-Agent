@@ -1,13 +1,29 @@
 {
   "name": "resume-agent",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "bin": {
+    "resume-agent": "./bin/resume-agent.js"
+  },
+  "files": [
+    "bin",
+    ".next",
+    "!.next/dev",
+    "!.next/cache",
+    "prisma",
+    "public",
+    "scripts",
+    "src/generated/prisma",
+    ".claude/CLAUDE.md",
+    ".claude/skills"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "node scripts/copy-typst-wasm.mjs"
+    "postinstall": "node scripts/copy-typst-wasm.mjs",
+    "prepublishOnly": "rm -rf .next && next build && prisma generate"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",

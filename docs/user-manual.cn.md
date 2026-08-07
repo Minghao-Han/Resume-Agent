@@ -15,7 +15,25 @@ Resume Agent 是一个**个人本地使用**的简历定制工具：维护一份
 
 ## 1. 安装
 
+### 方式 A —— 通过 npm 安装（推荐）
+
+`resume-agent` 已经[发布到 npm](https://www.npmjs.com/package/resume-agent)，是一个开箱即用的 CLI——不需要克隆仓库：
+
 ```bash
+npm install -g resume-agent
+resume-agent
+```
+
+首次运行会自动创建 `~/.resume-agent/`（SQLite 数据库和保存的 PDF 都存在这里，跟你在哪个目录下敲这条命令没有关系）、自动应用数据库迁移、启动服务，并自动在默认浏览器里打开 `http://localhost:3000`。`Ctrl+C` 停止。想换端口/监听地址：`PORT=4000 HOST=0.0.0.0 resume-agent`。
+
+运行前请先确保配置好了访问 Claude 的方式——见下方"关于访问 Claude"。
+
+### 方式 B —— 从源码运行（用于开发）
+
+```bash
+git clone https://github.com/Minghao-Han/Resume-Agent.git
+cd Resume-Agent
+
 # 1. 安装依赖（会自动执行 postinstall，把 Typst 的 wasm 文件拷到 public/typst/ 下）
 npm install
 
@@ -33,7 +51,7 @@ npm run dev
 npm run build && npm run start
 ```
 
-默认监听 `http://localhost:3000`。
+两种方式默认都监听 `http://localhost:3000`。
 
 **关于访问 Claude**：本项目所有 AI 功能都通过 [Claude Agent SDK](https://docs.claude.com) 调用本机的 Claude Code CLI 进程，因此你需要满足以下**两种方式之一**：
 

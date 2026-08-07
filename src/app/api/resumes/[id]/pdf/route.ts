@@ -6,7 +6,10 @@ import { errorResponse } from "@/lib/apiError";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-const STORAGE_DIR = path.join(process.cwd(), "storage", "resumes");
+// RESUME_STORAGE_DIR is set by bin/resume-agent.js when running as an installed
+// CLI (pointed at ~/.resume-agent/storage/resumes, independent of cwd); falls
+// back to a repo-relative path for local `npm run dev`.
+const STORAGE_DIR = process.env.RESUME_STORAGE_DIR || path.join(process.cwd(), "storage", "resumes");
 
 export async function PUT(request: Request, { params }: RouteParams) {
   try {

@@ -8,7 +8,25 @@ Everything runs on your own machine; data lives in a local SQLite database. Ther
 
 ## Quick Start
 
+### Option A — Install via npm (recommended)
+
+[`resume-agent`](https://www.npmjs.com/package/resume-agent) is published to npm as a self-contained CLI:
+
 ```bash
+npm install -g resume-agent
+resume-agent
+```
+
+That's it. On first run it automatically creates `~/.resume-agent/` (the SQLite database and saved PDFs live there, independent of whatever directory you run the command from), applies any pending database migrations, starts the server, and opens `http://localhost:3000` in your browser. `Ctrl+C` stops it. Custom port/host: `PORT=4000 HOST=0.0.0.0 resume-agent`.
+
+Make sure Claude access works before running it — see "About Claude access" below.
+
+### Option B — Run from source (for development / contributing)
+
+```bash
+git clone https://github.com/Minghao-Han/Resume-Agent.git
+cd Resume-Agent
+
 # 1. Install dependencies (postinstall copies Typst's wasm files into public/typst/)
 npm install
 
@@ -18,17 +36,18 @@ echo 'DATABASE_URL="file:./dev.db"' > .env
 # 3. Apply migrations, create dev.db, generate the Prisma Client
 npx prisma migrate dev
 
-# 4. Make sure Claude access works (pick one):
-#    - the Claude Code CLI is installed and logged in on this machine, or
-#    - ANTHROPIC_API_KEY is set in your environment / .env
-
-# 5. Run it
+# 4. Run it
 npm run dev        # development, http://localhost:3000
 # or
 npm run build && npm run start   # production mode, still local-only
 ```
 
-There's no in-app settings page for Claude credentials — it relies on whatever Claude access is already configured on the machine running the server.
+### About Claude access
+
+Either way, there's no in-app settings page for Claude credentials — it relies on whatever Claude access is already configured on the machine running it. Pick one:
+
+- The Claude Code CLI is installed and logged in on this machine, or
+- `ANTHROPIC_API_KEY` is set in your environment (or `.env`, for Option B).
 
 **Recommended first-time flow**: Templates → Profile → Experience Distillation → Generate Resume (& Save) → review/edit in Resume History. See [`docs/user-manual.md`](./docs/user-manual.md) for the full walkthrough.
 

@@ -221,8 +221,19 @@ PROJECT_ROOT = process.cwd()   // 作为每次调用的 cwd，让 SDK 能加载�
 
 - 当前**没有配置任何测试框架**（无 jest/vitest/playwright，无 `*.test.ts`），`package.json` 的 `scripts` 只有 `dev/build/start/lint/postinstall`。
 - 部署形态：本机 `next dev`（开发）或 `next build && next start`（生产模式，但仍是本机单进程），不是为多用户/云端部署设计的——没有鉴权、没有按用户隔离数据。
+- 另外也以全局 npm 包的形式发布（`npm install -g resume-agent`）——具体怎么打包见下面第 13 节。
 
-## 13. 已知的技术债 / 值得关注的点
+## 13. npm CLI 打包
+
+`resume-agent` 除了跑源码，还基于同一份代码打包成了一个开箱即用的 npm CLI。几个关键点：
+
+- **`bin/resume-agent.js`**（`package.json` 的 `bin` 字段指向它）是 npm 链接到 `PATH` 上的入口。每次启动都会：定位/首次创建 `~/.resume-agent/`（内含 `~/.resume-agent/storage/resumes/`）、把 `DATABASE_URL` 和 `RESUME_STORAGE_DIR` 这两个环境变量指到这里、跑一次 `prisma migrate deploy`（幂等，所以选择"每次都跑"而不是靠一个"是否已迁移"的标记文件——标记文件和数据库真实状态不同步，比如迁移中途失败，是个更麻烦的故障模式），然后对着包里自带的 `.next` 构建产物启动 `next start`，并自动打开默认浏览器。
+- **为什么要把 spawn 出来的 server 进程的 `cwd` 强行钉死在包根目录**：`next start <dir>` 并**不会** `process.chdir()`——它只是把 `<dir>` 用来定位构建产物，不影响进程本身的当前目录。如果不显式在 `spawn()` 时传 `cwd: PACKAGE_ROOT`，这个 server 进程就会继承用户敲 `resume-agent` 命令时所在的那个目录，而 `src/lib/agent/core.ts` 里的 `PROJECT_ROOT = process.cwd()` 就会指向错误的地方——结果是**默默地**找不到 `.claude/CLAUDE.md`/`.claude/skills/`（不会报错崩溃，只是所有 AI 功能都会丢失行为定制，退化成通用回答）。这是 v0.1.0 首次发布之后才发现的真实 bug，修复方式就是在 `bin/resume-agent.js` 的 `spawn()` 调用里加上 `cwd` 选项。
+- **`RESUME_STORAGE_DIR`**：`src/app/api/resumes/[id]/pdf/route.ts` 里的 `STORAGE_DIR` 现在会读这个环境变量（读不到时退回旧的、相对 `process.cwd()` 的路径，兼容本地 `npm run dev`），这样已保存简历的 PDF 就会稳定落在 `~/.resume-agent/` 这个固定目录，不管用户在哪个目录敲的命令——这一处也是在同一次 v0.1.0 发布之后才补上的，原因和上一条一样：这段代码原本是按"cwd 就是仓库根目录"这个假设写的，一旦这个应用能以装好的 CLI 形式从任意目录启动，这个假设就不再成立了。
+- **`package.json` 的 `files` 字段**精确控制打包进 tarball 的内容：`bin`、一份**生产环境**的 `.next` 构建产物（显式排除了 `.next/dev` 和 `.next/cache`，原因见下一条）、`prisma`（迁移文件 + schema）、`public`（Typst 的 wasm 二进制）、`scripts`、生成好的 `src/generated/prisma` client，以及 `.claude/CLAUDE.md` + `.claude/skills`（但故意**不**包含 `.claude/settings.json`——那是仓库本地的 worktree 隔离开发配置，对终端用户没有意义）。
+- **`prepublishOnly`: `rm -rf .next && next build && prisma generate`**——保证每次发布前都是一次干净的生产构建、Prisma Client 也是现生成的，这样本地残留的 `.next`（比如里面还留着 `next dev`/Turbopack 的开发缓存）就不可能混进发布包里。加上这一条的起因是：第一次 `npm pack` 生成了一个 **336 MB** 的 tarball——光是 `.next/dev/cache`（Turbopack 的持久化开发缓存）就占了未压缩内容约 530 MB 里的约 407 MB；靠 `files` 字段排除掉 `.next/dev` 和 `.next/cache` 之后，`.next` 真正的体积降到了约 22 MB（也就是真实的 `.next/server`/`.next/static`/`.next/build` 生产产物）。
+
+## 14. 已知的技术债 / 值得关注的点
 
 - `serialize()`（JSON 字段反序列化 helper）在 `src/app/api/resumes/route.ts` 和 `src/app/api/resumes/[id]/route.ts` 里各自复制了一份，没有抽到公共模块。
 - `ResumeTemplate.calibration` 字段的 schema 注释描述的形状（`{intercept, perEntry, perBullet, perChar, ...}`）和实际写入的形状（`{charRangeLow, charRangeHigh, realPageHeightPt, calibratedAt}`）不一致，注释像是早期设计遗留，未同步更新。

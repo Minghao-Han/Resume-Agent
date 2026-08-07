@@ -8,7 +8,25 @@
 
 ## 快速开始
 
+### 方式 A —— 通过 npm 安装（推荐）
+
+[`resume-agent`](https://www.npmjs.com/package/resume-agent) 已经发布到 npm，是一个开箱即用的 CLI：
+
 ```bash
+npm install -g resume-agent
+resume-agent
+```
+
+就这么简单。首次运行会自动创建 `~/.resume-agent/`（SQLite 数据库和保存的 PDF 都存在这里，跟你在哪个目录下敲这条命令无关）、自动应用数据库迁移、启动服务，并自动打开浏览器访问 `http://localhost:3000`。`Ctrl+C` 停止。想换端口/监听地址：`PORT=4000 HOST=0.0.0.0 resume-agent`。
+
+运行前请先确保能访问 Claude——见下方"关于访问 Claude"。
+
+### 方式 B —— 从源码运行（用于开发/贡献代码）
+
+```bash
+git clone https://github.com/Minghao-Han/Resume-Agent.git
+cd Resume-Agent
+
 # 1. 安装依赖（postinstall 会把 Typst 的 wasm 文件拷到 public/typst/ 下）
 npm install
 
@@ -18,17 +36,18 @@ echo 'DATABASE_URL="file:./dev.db"' > .env
 # 3. 应用迁移、创建 dev.db、生成 Prisma Client
 npx prisma migrate dev
 
-# 4. 确保能访问 Claude（二选一）：
-#    - 本机已安装并登录 Claude Code CLI；或
-#    - 设置了环境变量 ANTHROPIC_API_KEY（.env 或 shell 均可）
-
-# 5. 启动
+# 4. 启动
 npm run dev        # 开发模式，http://localhost:3000
 # 或
 npm run build && npm run start   # 生产模式，同样只在本机运行
 ```
 
-应用内没有配置 Claude 凭证的设置页——依赖运行这个服务的机器上已经配好的 Claude 访问方式。
+### 关于访问 Claude
+
+不管哪种方式，应用内都没有配置 Claude 凭证的设置页——依赖运行它的这台机器上已经配好的 Claude 访问方式，二选一：
+
+- 本机已安装并登录 Claude Code CLI；或
+- 设置了环境变量 `ANTHROPIC_API_KEY`（方式 B 的话，`.env` 或 shell 均可）。
 
 **建议的初次使用流程**：模板编辑 → 个人信息 → 经历蒸馏 → 生成简历（并保存）→ 在历史简历中查看/修改。完整说明见 [`docs/user-manual.cn.md`](./docs/user-manual.cn.md)。
 

@@ -15,7 +15,25 @@ This manual has two parts:
 
 ## 1. Installation
 
+### Option A — npm (recommended)
+
+`resume-agent` is [published on npm](https://www.npmjs.com/package/resume-agent) as a self-contained CLI — no repo clone needed:
+
 ```bash
+npm install -g resume-agent
+resume-agent
+```
+
+First run automatically creates `~/.resume-agent/` (this is where the SQLite database and saved PDFs live, regardless of which directory you launch the command from), applies any pending database migrations, starts the server, and opens `http://localhost:3000` in your default browser. Stop it with `Ctrl+C`. To use a different port or bind address: `PORT=4000 HOST=0.0.0.0 resume-agent`.
+
+Make sure Claude access is set up before running it — see "About Claude access" below.
+
+### Option B — from source (for development)
+
+```bash
+git clone https://github.com/Minghao-Han/Resume-Agent.git
+cd Resume-Agent
+
 # 1. Install dependencies (postinstall automatically copies the Typst wasm files
 #    into public/typst/)
 npm install
@@ -34,7 +52,7 @@ npm run dev
 npm run build && npm run start
 ```
 
-Listens on `http://localhost:3000` by default.
+Both options listen on `http://localhost:3000` by default.
 
 **About Claude access**: every AI feature in this app goes through the [Claude Agent SDK](https://docs.claude.com), which talks to a local Claude Code CLI process. You need **one of the following**:
 
