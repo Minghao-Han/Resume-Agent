@@ -13,6 +13,12 @@ const { spawn, spawnSync } = require('child_process');
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const NEXT_DIR = PACKAGE_ROOT; // next start 需要在含有 .next 的目录下执行（或用 -C 指定）
 const PRISMA_SCHEMA_PATH = path.join(PACKAGE_ROOT, 'prisma', 'schema.prisma');
+// Prisma 7 reads datasource.url exclusively from this config file — the
+// schema.prisma datasource block deliberately has no url. Passing --config
+// explicitly (rather than relying on cwd-based auto-discovery) avoids any
+// ambiguity from how different platforms/package managers lay out a global
+// install's working directory.
+const PRISMA_CONFIG_PATH = path.join(PACKAGE_ROOT, 'prisma.config.ts');
 
 const PORT = process.env.PORT || '3000';
 const HOST = process.env.HOST || 'localhost';
@@ -73,6 +79,13 @@ function runMigrations() {
   if (!fs.existsSync(PRISMA_SCHEMA_PATH)) {
     fail(`找不到 Prisma schema: ${PRISMA_SCHEMA_PATH}\n打包时请确认 prisma/schema.prisma 已包含在发布包内。`);
   }
+  if (!fs.existsSync(PRISMA_CONFIG_PATH)) {
+    fail(
+      `找不到 Prisma 配置文件: ${PRISMA_CONFIG_PATH}\n` +
+        'datasource.url 是从这个文件读取的（schema.prisma 里没有写 url）——' +
+        '打包时请确认 prisma.config.ts 已包含在发布包内（package.json 的 "files" 字段）。'
+    );
+  }
 
   log('检查并应用数据库迁移...');
 
@@ -84,6 +97,8 @@ function runMigrations() {
       'deploy',
       '--schema',
       PRISMA_SCHEMA_PATH,
+      '--config',
+      PRISMA_CONFIG_PATH,
     ],
     {
       stdio: 'inherit',

@@ -11,6 +11,7 @@
     "!.next/dev",
     "!.next/cache",
     "prisma",
+    "prisma.config.ts",
     "public",
     "scripts",
     "src/generated/prisma",
