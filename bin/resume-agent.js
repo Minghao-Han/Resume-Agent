@@ -146,6 +146,39 @@ function openBrowser(url) {
 }
 
 // ---------------------------------------------------------------------------
+// 恢复 Turbopack 打包时"外置"出去的原生/特殊依赖（better-sqlite3、@prisma/client）
+//
+// `next build`（Turbopack）会把这类没法直接打进 JS chunk 的依赖，复制一份到
+// `.next/node_modules/<内容哈希>/`，编译产物里用这个哈希名去 require() 它，
+// 靠 Node 正常的 node_modules 查找规则去找到这个目录。
+//
+// 但 npm 发布时会无条件剔除包里任何一个名字叫 node_modules 的目录，不管
+// package.json 的 "files" 字段怎么写都拦不住——所以发布时 scripts/
+// relocate-next-native-deps.mjs 会先把它改名成 `.next/vendor`（npm 不会动
+// 这个名字），到了用户机器上首次启动时，这里再把它改回 `.next/node_modules`，
+// 编译产物里那些哈希名的 require() 才能重新解析成功。
+// ---------------------------------------------------------------------------
+function ensureNativeVendorModules() {
+  const vendorDir = path.join(NEXT_DIR, '.next', 'vendor');
+  const nodeModulesDir = path.join(NEXT_DIR, '.next', 'node_modules');
+
+  if (!fs.existsSync(vendorDir)) return; // 本地开发跑 next build 时不会有这一步，属于正常情况
+  if (fs.existsSync(nodeModulesDir)) return; // 之前已经恢复过了
+
+  log('恢复构建时外置的原生依赖（better-sqlite3 等）...');
+  try {
+    fs.renameSync(vendorDir, nodeModulesDir);
+  } catch (err) {
+    // 极少数情况下跨设备/权限问题会导致 rename 失败，退化成复制
+    try {
+      fs.cpSync(vendorDir, nodeModulesDir, { recursive: true });
+    } catch (copyErr) {
+      fail('恢复原生依赖失败，服务可能无法正常连接数据库', copyErr);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 第 4 步：启动打包好的 Next.js 服务
 // ---------------------------------------------------------------------------
 function startServer() {
@@ -227,6 +260,7 @@ function main() {
   const paths = ensureDataDir();
   setEnv(paths);
   runMigrations();
+  ensureNativeVendorModules();
   startServer();
 }
 
