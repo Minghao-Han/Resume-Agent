@@ -24,7 +24,7 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "node scripts/copy-typst-wasm.mjs",
-    "prepublishOnly": "rm -rf .next && next build && node scripts/relocate-next-native-deps.mjs && prisma generate"
+    "prepublishOnly": "rm -rf .next && next build --webpack && node scripts/relocate-next-native-deps.mjs && prisma generate"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",

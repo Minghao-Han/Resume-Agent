@@ -17,6 +17,16 @@
 // `.next/node_modules` from `.next/vendor` at first launch on the end user's
 // machine, where the real directory name is required again for Node's
 // resolution to work.
+//
+// As of this writing, the build is invoked as `next build --webpack`
+// specifically to avoid triggering this Turbopack-only behavior in the
+// first place (see docs/technical-doc.md's npm-packaging section) — under
+// webpack, serverExternalPackages like better-sqlite3/@prisma/client should
+// just be a plain, unhashed require() resolved against the real
+// node_modules, so `.next/node_modules` may simply not exist. That's fine:
+// this script is a no-op in that case rather than a hard failure, so the
+// publish pipeline doesn't break if/when this whole relocation becomes
+// unnecessary.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -25,11 +35,8 @@ const from = path.join(nextDir, "node_modules");
 const to = path.join(nextDir, "vendor");
 
 if (!fs.existsSync(from)) {
-  console.error(
-    `[relocate-next-native-deps] 找不到 ${from}\n` +
-      "这一步必须紧跟在 next build 之后运行（先 next build，再跑本脚本）。"
-  );
-  process.exit(1);
+  console.log(`[relocate-next-native-deps] 没有 ${from}，跳过（这次构建可能没有产生需要外置的原生依赖）。`);
+  process.exit(0);
 }
 
 fs.rmSync(to, { recursive: true, force: true });
