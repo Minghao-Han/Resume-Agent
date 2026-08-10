@@ -19,6 +19,7 @@ const PRISMA_SCHEMA_PATH = path.join(PACKAGE_ROOT, 'prisma', 'schema.prisma');
 // ambiguity from how different platforms/package managers lay out a global
 // install's working directory.
 const PRISMA_CONFIG_PATH = path.join(PACKAGE_ROOT, 'prisma.config.ts');
+const PACKAGE_VERSION = require(path.join(PACKAGE_ROOT, 'package.json')).version;
 
 const PORT = process.env.PORT || '3000';
 const HOST = process.env.HOST || 'localhost';
@@ -198,6 +199,31 @@ function startServer() {
 // main
 // ---------------------------------------------------------------------------
 function main() {
+  const args = process.argv.slice(2);
+  if (args.includes('--version') || args.includes('-v')) {
+    console.log(PACKAGE_VERSION);
+    return;
+  }
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(
+      [
+        `resume-agent v${PACKAGE_VERSION}`,
+        '',
+        '用法: resume-agent [选项]',
+        '',
+        '选项:',
+        '  --version, -v   打印版本号并退出',
+        '  --help, -h      打印本帮助并退出',
+        '',
+        '环境变量:',
+        '  PORT            监听端口（默认 3000）',
+        '  HOST            监听地址（默认 localhost）',
+      ].join('\n')
+    );
+    return;
+  }
+
+  log(`resume-agent v${PACKAGE_VERSION}`);
   const paths = ensureDataDir();
   setEnv(paths);
   runMigrations();
