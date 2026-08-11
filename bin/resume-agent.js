@@ -274,7 +274,12 @@ function startServer() {
   // odds of the user seeing "this site can't be reached" for a moment.
   setTimeout(() => openBrowser(`http://${HOST}:${PORT}`), 1500);
 
-  // Make sure Ctrl+C actually kills the child process too.
+  // Make sure Ctrl+C actually kills the child process too. Windows never
+  // delivers a real SIGTERM to a console process (Node just never invokes
+  // that listener there), so forwarding it is a no-op on Windows — Ctrl+C
+  // (SIGINT) still works fine there and is what actually matters day to
+  // day, but SIGBREAK (Ctrl+Break) is the closest thing Windows *does*
+  // deliver beyond that, so forward it too.
   const forwardSignal = (signal) => {
     process.on(signal, () => {
       server.kill(signal);
@@ -282,6 +287,18 @@ function startServer() {
   };
   forwardSignal('SIGINT');
   forwardSignal('SIGTERM');
+  if (process.platform === 'win32') forwardSignal('SIGBREAK');
+
+  // Best-effort safety net beyond signal forwarding: Node's 'exit' event
+  // fires on more termination paths than any single signal does (e.g. the
+  // terminal window being closed), so also kill the child there. This
+  // can't catch everything (an abrupt SIGKILL/Task-Manager "End Task" on
+  // the parent bypasses Node entirely either way), but it's cheap and
+  // reduces the odds of a leftover server process squatting on the port
+  // for the next launch.
+  process.on('exit', () => {
+    if (!server.killed) server.kill();
+  });
 }
 
 // ---------------------------------------------------------------------------
