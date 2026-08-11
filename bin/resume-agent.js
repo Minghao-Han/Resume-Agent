@@ -63,7 +63,18 @@ function ensureDataDir() {
 // the fixed, per-user data directory.
 // ---------------------------------------------------------------------------
 function setEnv({ dbPath, storageDir }) {
-  process.env.DATABASE_URL = 'file:' + dbPath;
+  // Prisma's `file:` datasource URLs are always documented/used with forward
+  // slashes, regardless of platform (see the checked-in .env's
+  // `file:./dev.db`) — on Windows, `dbPath` from path.join() is backslash-
+  // separated (e.g. `C:\Users\name\.resume-agent\dev.db`), which the JS
+  // driver (@prisma/adapter-better-sqlite3) tolerates fine (it just strips
+  // the `file:` prefix and hands the rest straight to the OS file APIs,
+  // never parsing it as a real URL), but Prisma's separate compiled
+  // migrate-engine has historically been stricter about `file:` URL
+  // formatting on Windows. Normalizing to forward slashes here matches
+  // Prisma's own convention and avoids relying on the migrate engine's
+  // tolerance for backslashes, which hasn't been verified.
+  process.env.DATABASE_URL = 'file:' + dbPath.split(path.sep).join('/');
   // If app code elsewhere also reads/writes storage/resumes via a relative
   // path, it should read this env var too, instead of joining process.cwd().
   process.env.RESUME_STORAGE_DIR = storageDir;
