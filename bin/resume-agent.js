@@ -189,13 +189,18 @@ function openBrowser(url) {
 // output require()s them by that hashed name, relying on Node's normal
 // node_modules resolution to find that directory.
 //
-// But npm unconditionally strips any directory literally named
-// node_modules from a published package, no matter what package.json's
-// "files" field says — so scripts/relocate-next-native-deps.mjs renames it
-// to `.next/vendor` at publish time (a name npm won't touch), and this
-// function renames it back to `.next/node_modules` on the end user's
-// machine the first time they launch, so those hashed require() calls in
-// the compiled output can resolve again.
+// But npm unconditionally strips anything whose path — including a
+// *resolved* symlink target — contains a node_modules segment, no matter
+// what package.json's "files" field says. The hashed entries here are
+// themselves symlinks into the real top-level node_modules/, so a plain
+// rename isn't enough (the symlinks still resolve into node_modules/) —
+// scripts/relocate-next-native-deps.mjs instead copies this directory to
+// `.next/vendor` at build time, *dereferencing* the symlinks into real file
+// content (a name and a shape npm won't strip). This function renames that
+// back to `.next/node_modules` on the end user's machine the first time
+// they launch, so those hashed require() calls in the compiled output can
+// resolve again — a plain rename is fine here since the source is now real
+// files, not symlinks.
 // ---------------------------------------------------------------------------
 function ensureNativeVendorModules() {
   const vendorDir = path.join(NEXT_DIR, '.next', 'vendor');
