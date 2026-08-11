@@ -8,11 +8,13 @@ const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
 // ---------------------------------------------------------------------------
-// 包内路径（打包发布后，这个脚本位于 <package_root>/bin/resume-agent.js）
+// Package-relative paths (once published, this script lives at
+// <package_root>/bin/resume-agent.js)
 // ---------------------------------------------------------------------------
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
-const NEXT_DIR = PACKAGE_ROOT; // next start 需要在含有 .next 的目录下执行（或用 -C 指定）
+const NEXT_DIR = PACKAGE_ROOT; // `next start` needs to run against the directory containing .next (or pass it explicitly)
 const PRISMA_SCHEMA_PATH = path.join(PACKAGE_ROOT, 'prisma', 'schema.prisma');
+const MIGRATIONS_DIR = path.join(PACKAGE_ROOT, 'prisma', 'migrations');
 // Prisma 7 reads datasource.url exclusively from this config file — the
 // schema.prisma datasource block deliberately has no url. Passing --config
 // explicitly (rather than relying on cwd-based auto-discovery) avoids any
@@ -20,6 +22,10 @@ const PRISMA_SCHEMA_PATH = path.join(PACKAGE_ROOT, 'prisma', 'schema.prisma');
 // install's working directory.
 const PRISMA_CONFIG_PATH = path.join(PACKAGE_ROOT, 'prisma.config.ts');
 const PACKAGE_VERSION = require(path.join(PACKAGE_ROOT, 'package.json')).version;
+// Records the last migration folder name successfully applied by this CLI —
+// lets a normal launch skip spawning the Prisma CLI entirely when nothing
+// has changed. See runMigrations() for why this is safe.
+const MIGRATION_MARKER_NAME = '.last-migration';
 
 const PORT = process.env.PORT || '3000';
 const HOST = process.env.HOST || 'localhost';
@@ -29,13 +35,13 @@ function log(msg) {
 }
 
 function fail(msg, err) {
-  console.error(`[resume-agent] 错误: ${msg}`);
+  console.error(`[resume-agent] Error: ${msg}`);
   if (err) console.error(err);
   process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
-// 第 1 步：定位 / 首次创建 ~/.resume-agent 数据目录
+// Step 1: locate / create ~/.resume-agent on first run
 // ---------------------------------------------------------------------------
 function ensureDataDir() {
   const dataDir = path.join(os.homedir(), '.resume-agent');
@@ -44,7 +50,7 @@ function ensureDataDir() {
   for (const dir of [dataDir, storageDir]) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-      log(`已创建目录: ${dir}`);
+      log(`Created directory: ${dir}`);
     }
   }
 
@@ -52,43 +58,70 @@ function ensureDataDir() {
 }
 
 // ---------------------------------------------------------------------------
-// 第 2 步：设置 DATABASE_URL（相对路径的隐患就是从这里解决的——
-// 不管用户从哪个 cwd 启动，DATABASE_URL 永远指向固定的用户级目录）
+// Step 2: set DATABASE_URL — this is what fixes the "relative path" hazard:
+// no matter which cwd the user launches from, DATABASE_URL always points at
+// the fixed, per-user data directory.
 // ---------------------------------------------------------------------------
 function setEnv({ dbPath, storageDir }) {
   process.env.DATABASE_URL = 'file:' + dbPath;
-  // 如果应用代码里也用相对路径读写 storage/resumes，
-  // 同样应该改成读这个环境变量，而不是拼 process.cwd()
+  // If app code elsewhere also reads/writes storage/resumes via a relative
+  // path, it should read this env var too, instead of joining process.cwd().
   process.env.RESUME_STORAGE_DIR = storageDir;
   log(`DATABASE_URL = ${process.env.DATABASE_URL}`);
   log(`RESUME_STORAGE_DIR = ${process.env.RESUME_STORAGE_DIR}`);
 }
 
 // ---------------------------------------------------------------------------
-// 第 3 步：跑迁移
+// Step 3: run migrations
 //
-// prisma migrate deploy 本身是幂等的：没有待应用的迁移时会直接快速返回，
-// 不会重复执行已经跑过的迁移。所以这里选择"每次都跑一次"，
-// 而不是自己维护一个"是否已迁移"的标记文件——
-// 标记文件和数据库真实状态不同步（比如迁移中途失败）是一个更麻烦的故障模式。
+// `prisma migrate deploy` only ever applies migrations that aren't already
+// recorded as applied, in order — it never drops/resets/diffs anything, so
+// running it repeatedly is safe by design (this is the same command CI/CD
+// pipelines run on every deploy). It cannot cause data loss on its own.
 //
-// 如果你确实想跳过这次检查（比如追求毫秒级启动），可以改成：
-//   const marker = path.join(dataDir, '.migrated');
-//   if (!fs.existsSync(marker)) { ...跑迁移... fs.writeFileSync(marker, ''); }
+// What it *does* cost is time: spawning the Prisma CLI, loading its bundle,
+// connecting, and diffing the migrations table happens on every single
+// launch, even when there's nothing to do — noticeably slowing down what
+// should be an instant local app start.
+//
+// So: skip spawning it at all when nothing has changed. We key this on the
+// actual contents of prisma/migrations/ (the latest migration folder name),
+// not just "have we ever migrated" — so a newer resume-agent version that
+// ships new migrations is still picked up automatically, and the marker is
+// only ever written *after* a successful `migrate deploy`, so a failed or
+// interrupted run can never leave the marker out of sync with real DB state.
 // ---------------------------------------------------------------------------
-function runMigrations() {
+function latestMigrationName() {
+  if (!fs.existsSync(MIGRATIONS_DIR)) return null;
+  const names = fs
+    .readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  return names.length > 0 ? names[names.length - 1] : null;
+}
+
+function runMigrations(dataDir) {
   if (!fs.existsSync(PRISMA_SCHEMA_PATH)) {
-    fail(`找不到 Prisma schema: ${PRISMA_SCHEMA_PATH}\n打包时请确认 prisma/schema.prisma 已包含在发布包内。`);
+    fail(`Prisma schema not found: ${PRISMA_SCHEMA_PATH}\nMake sure prisma/schema.prisma is included in the published package.`);
   }
   if (!fs.existsSync(PRISMA_CONFIG_PATH)) {
     fail(
-      `找不到 Prisma 配置文件: ${PRISMA_CONFIG_PATH}\n` +
-        'datasource.url 是从这个文件读取的（schema.prisma 里没有写 url）——' +
-        '打包时请确认 prisma.config.ts 已包含在发布包内（package.json 的 "files" 字段）。'
+      `Prisma config file not found: ${PRISMA_CONFIG_PATH}\n` +
+        "datasource.url is read from this file (schema.prisma has no url) — " +
+        'make sure prisma.config.ts is included in the published package (package.json\'s "files" field).'
     );
   }
 
-  log('检查并应用数据库迁移...');
+  const marker = path.join(dataDir, MIGRATION_MARKER_NAME);
+  const latest = latestMigrationName();
+  const lastApplied = fs.existsSync(marker) ? fs.readFileSync(marker, 'utf8').trim() : null;
+
+  if (latest && latest === lastApplied) {
+    return; // already up to date as of the last successful run — nothing to do
+  }
+
+  log('Checking and applying database migrations...');
 
   const result = spawnSync(
     process.execPath,
@@ -109,17 +142,18 @@ function runMigrations() {
   );
 
   if (result.error) {
-    fail('执行 prisma migrate deploy 失败', result.error);
+    fail('Failed to run `prisma migrate deploy`', result.error);
   }
   if (result.status !== 0) {
-    fail(`prisma migrate deploy 以退出码 ${result.status} 结束`);
+    fail(`\`prisma migrate deploy\` exited with code ${result.status}`);
   }
 
-  log('迁移检查完成。');
+  if (latest) fs.writeFileSync(marker, latest);
+  log('Migrations up to date.');
 }
 
 // ---------------------------------------------------------------------------
-// 第 5 步：跨平台打开默认浏览器（不引入额外依赖）
+// Step 5: open the default browser, cross-platform (no extra dependency)
 // ---------------------------------------------------------------------------
 function openBrowser(url) {
   const platform = process.platform;
@@ -140,55 +174,60 @@ function openBrowser(url) {
   try {
     spawn(cmd, args, { stdio: 'ignore', detached: true }).unref();
   } catch (err) {
-    // 打不开浏览器不应该阻塞服务启动，提示一下让用户手动打开即可
-    log(`无法自动打开浏览器，请手动访问 ${url}`);
+    // Failing to open a browser shouldn't block the server from starting —
+    // just tell the user to open it themselves.
+    log(`Could not open the browser automatically — please visit ${url} manually.`);
   }
 }
 
 // ---------------------------------------------------------------------------
-// 恢复 Turbopack 打包时"外置"出去的原生/特殊依赖（better-sqlite3、@prisma/client）
+// Restore native/special dependencies Turbopack "externalized" at build time
+// (better-sqlite3, @prisma/client).
 //
-// `next build`（Turbopack）会把这类没法直接打进 JS chunk 的依赖，复制一份到
-// `.next/node_modules/<内容哈希>/`，编译产物里用这个哈希名去 require() 它，
-// 靠 Node 正常的 node_modules 查找规则去找到这个目录。
+// `next build` (Turbopack) copies dependencies that can't be bundled into a
+// JS chunk into `.next/node_modules/<content-hash>/`, and the compiled
+// output require()s them by that hashed name, relying on Node's normal
+// node_modules resolution to find that directory.
 //
-// 但 npm 发布时会无条件剔除包里任何一个名字叫 node_modules 的目录，不管
-// package.json 的 "files" 字段怎么写都拦不住——所以发布时 scripts/
-// relocate-next-native-deps.mjs 会先把它改名成 `.next/vendor`（npm 不会动
-// 这个名字），到了用户机器上首次启动时，这里再把它改回 `.next/node_modules`，
-// 编译产物里那些哈希名的 require() 才能重新解析成功。
+// But npm unconditionally strips any directory literally named
+// node_modules from a published package, no matter what package.json's
+// "files" field says — so scripts/relocate-next-native-deps.mjs renames it
+// to `.next/vendor` at publish time (a name npm won't touch), and this
+// function renames it back to `.next/node_modules` on the end user's
+// machine the first time they launch, so those hashed require() calls in
+// the compiled output can resolve again.
 // ---------------------------------------------------------------------------
 function ensureNativeVendorModules() {
   const vendorDir = path.join(NEXT_DIR, '.next', 'vendor');
   const nodeModulesDir = path.join(NEXT_DIR, '.next', 'node_modules');
 
-  if (!fs.existsSync(vendorDir)) return; // 本地开发跑 next build 时不会有这一步，属于正常情况
-  if (fs.existsSync(nodeModulesDir)) return; // 之前已经恢复过了
+  if (!fs.existsSync(vendorDir)) return; // normal for a local `next build` during development
+  if (fs.existsSync(nodeModulesDir)) return; // already restored on a previous launch
 
-  log('恢复构建时外置的原生依赖（better-sqlite3 等）...');
+  log('Restoring native dependencies externalized at build time (better-sqlite3, etc.)...');
   try {
     fs.renameSync(vendorDir, nodeModulesDir);
   } catch (err) {
-    // 极少数情况下跨设备/权限问题会导致 rename 失败，退化成复制
+    // Rare cross-device/permission edge case — fall back to copying.
     try {
       fs.cpSync(vendorDir, nodeModulesDir, { recursive: true });
     } catch (copyErr) {
-      fail('恢复原生依赖失败，服务可能无法正常连接数据库', copyErr);
+      fail('Failed to restore native dependencies — the app may not be able to connect to the database', copyErr);
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// 第 4 步：启动打包好的 Next.js 服务
+// Step 4: start the bundled Next.js server
 // ---------------------------------------------------------------------------
 function startServer() {
   const nextBin = require.resolve('next/dist/bin/next', { paths: [PACKAGE_ROOT] });
 
   if (!fs.existsSync(path.join(NEXT_DIR, '.next'))) {
-    fail(`找不到构建产物 .next 目录: ${path.join(NEXT_DIR, '.next')}\n发布前请确认已执行 next build 并把 .next 打包进发行包。`);
+    fail(`Build output not found: ${path.join(NEXT_DIR, '.next')}\nMake sure \`next build\` was run and .next was included in the published package.`);
   }
 
-  log(`启动服务: http://${HOST}:${PORT}`);
+  log(`Starting server: http://${HOST}:${PORT}`);
 
   const server = spawn(
     process.execPath,
@@ -208,17 +247,18 @@ function startServer() {
     }
   );
 
-  server.on('error', (err) => fail('启动 Next.js 服务失败', err));
+  server.on('error', (err) => fail('Failed to start the Next.js server', err));
 
   server.on('exit', (code) => {
     process.exit(code === null ? 1 : code);
   });
 
-  // 服务是异步起来的，next start 打印出 "Ready" 前浏览器打开也没事，
-  // 简单起见延迟一小段时间再打开，减少用户看到"无法访问此网站"的概率
+  // The server starts up asynchronously — opening the browser before `next
+  // start` prints "Ready" is harmless, so just delay slightly to reduce the
+  // odds of the user seeing "this site can't be reached" for a moment.
   setTimeout(() => openBrowser(`http://${HOST}:${PORT}`), 1500);
 
-  // 保证 Ctrl+C 能正确杀掉子进程
+  // Make sure Ctrl+C actually kills the child process too.
   const forwardSignal = (signal) => {
     process.on(signal, () => {
       server.kill(signal);
@@ -242,15 +282,15 @@ function main() {
       [
         `resume-agent v${PACKAGE_VERSION}`,
         '',
-        '用法: resume-agent [选项]',
+        'Usage: resume-agent [options]',
         '',
-        '选项:',
-        '  --version, -v   打印版本号并退出',
-        '  --help, -h      打印本帮助并退出',
+        'Options:',
+        '  --version, -v   Print the version number and exit',
+        '  --help, -h      Print this help and exit',
         '',
-        '环境变量:',
-        '  PORT            监听端口（默认 3000）',
-        '  HOST            监听地址（默认 localhost）',
+        'Environment variables:',
+        '  PORT            Port to listen on (default 3000)',
+        '  HOST            Host to bind to (default localhost)',
       ].join('\n')
     );
     return;
@@ -259,7 +299,7 @@ function main() {
   log(`resume-agent v${PACKAGE_VERSION}`);
   const paths = ensureDataDir();
   setEnv(paths);
-  runMigrations();
+  runMigrations(paths.dataDir);
   ensureNativeVendorModules();
   startServer();
 }

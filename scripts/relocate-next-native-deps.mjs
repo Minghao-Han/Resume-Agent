@@ -35,10 +35,10 @@ const from = path.join(nextDir, "node_modules");
 const to = path.join(nextDir, "vendor");
 
 if (!fs.existsSync(from)) {
-  console.log(`[relocate-next-native-deps] 没有 ${from}，跳过（这次构建可能没有产生需要外置的原生依赖）。`);
+  console.log(`[relocate-next-native-deps] ${from} not found, skipping (this build may not have externalized any native dependencies).`);
   process.exit(0);
 }
 
 fs.rmSync(to, { recursive: true, force: true });
 fs.renameSync(from, to);
-console.log(`[relocate-next-native-deps] 已将 ${from} 重命名为 ${to}（避免被 npm 自动排除）。`);
+console.log(`[relocate-next-native-deps] Renamed ${from} to ${to} (so npm won't strip it).`);
