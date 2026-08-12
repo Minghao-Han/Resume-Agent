@@ -5,6 +5,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { ChatPanel, type ChatMessage } from "@/components/ChatPanel";
 import { TypstPreview, type TypstCompileInfo } from "@/components/TypstPreview";
 import { compileTypstPdf, downloadPdfBytes } from "@/lib/typstClient";
+import { sanitizeFilename } from "@/lib/sanitizeFilename";
 import { typstLanguage } from "@/lib/typstLanguage";
 import { useIsDarkMode } from "@/lib/useIsDarkMode";
 import { toast } from "@/lib/toast";
@@ -81,6 +82,7 @@ export default function GeneratePage() {
   const [generating, setGenerating] = useState(false);
   const [compileInfo, setCompileInfo] = useState<TypstCompileInfo>({ pageCount: 0, error: null });
   const [label, setLabel] = useState("");
+  const [labelEdited, setLabelEdited] = useState(false);
   const [company, setCompany] = useState("");
   const [targetRole, setTargetRole] = useState("");
   const [usage, setUsage] = useState<GenerateUsage | null>(null);
@@ -99,6 +101,17 @@ export default function GeneratePage() {
       if (def) setTemplateId(def.id);
     });
   }, []);
+
+  // Default the resume name to "岗位title-公司名字" (or whichever of the two
+  // is known) as soon as the AI detects them, so multiple generated resumes
+  // stay distinguishable without the user having to type a name themselves —
+  // but only while they haven't typed a custom one, so this never clobbers
+  // an edit once they've made one.
+  useEffect(() => {
+    if (labelEdited) return;
+    if (!company && !targetRole) return;
+    setLabel(targetRole && company ? `${targetRole}-${company}` : targetRole || company);
+  }, [company, targetRole, labelEdited]);
 
   async function generate() {
     if (!jdText.trim() || !templateId) return;
@@ -180,7 +193,7 @@ export default function GeneratePage() {
 
   async function download() {
     const pdfBytes = await compileTypstPdf(typstSource);
-    downloadPdfBytes(pdfBytes, "resume.pdf");
+    downloadPdfBytes(pdfBytes, `${sanitizeFilename(label)}.pdf`);
   }
 
   return (
@@ -276,9 +289,12 @@ export default function GeneratePage() {
         <div className="flex items-center gap-2">
           <input
             className="input flex-1"
-            placeholder="简历名称（保存用）"
+            placeholder="简历名称（保存用，默认按岗位-公司自动生成）"
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            onChange={(e) => {
+              setLabel(e.target.value);
+              setLabelEdited(true);
+            }}
           />
           <button type="button" className="btn-secondary" onClick={download} disabled={!typstSource}>
             下载 PDF

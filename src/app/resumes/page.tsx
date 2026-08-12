@@ -6,6 +6,7 @@ import { TypstPreview } from "@/components/TypstPreview";
 import { typstLanguage } from "@/lib/typstLanguage";
 import { useIsDarkMode } from "@/lib/useIsDarkMode";
 import { compileTypstPdf } from "@/lib/typstClient";
+import { sanitizeFilename } from "@/lib/sanitizeFilename";
 import { toast } from "@/lib/toast";
 import { ApiError, apiGet, apiDelete, apiPut, apiPutBinary } from "@/lib/apiClient";
 import { UNSAVED_CHANGES_MESSAGE } from "@/lib/unsavedChanges";
@@ -132,7 +133,7 @@ export default function ResumesPage() {
                 <a
                   className="btn-secondary"
                   href={`/api/resumes/${r.id}/pdf`}
-                  download="resume.pdf"
+                  download={`${sanitizeFilename(titleFor(r))}.pdf`}
                   aria-disabled={!r.pdfPath}
                 >
                   下载
