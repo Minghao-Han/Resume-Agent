@@ -11,32 +11,68 @@
 // npm, however, unconditionally strips anything whose path — including a
 // *resolved* symlink target — contains a `node_modules` segment, no matter
 // what package.json's "files" field says. So publishing `.next` as-is
-// silently drops this directory (a plain rename doesn't help either: the
-// symlinks inside it still resolve into node_modules/, so npm still strips
-// them even under a different container directory name), and the app
-// crashes at runtime with:
+// silently drops this directory, and the app crashes at runtime with:
 //   Cannot find module '<hashed-name>'
 //
-// Fix: copy this directory to `.next/vendor` (a name npm won't touch)
-// *dereferencing* symlinks, so what actually gets published is real file
-// content, not symlinks pointing back into node_modules/. This runs right
-// after the build, before packing/publishing. bin/resume-agent.js recreates
-// `.next/node_modules` from `.next/vendor` at first launch on the end user's
-// machine, where the real directory name is required again for Node's
-// resolution to work.
+// The first fix for this (copying the symlinks' real content, dereferenced,
+// into `.next/vendor`) was WRONG in a more serious way: better-sqlite3 ships
+// a compiled native `.node` binary that's specific to one OS/architecture.
+// Copying the *maintainer's own machine's* compiled binary into the
+// published package bakes in a binary that only runs on the platform it was
+// built on — installing on any other OS fails with an OS-loader error (e.g.
+// on Windows: "... is not a valid Win32 application"). better-sqlite3 and
+// @prisma/client are already real dependencies of this package, so a normal
+// `npm install` already fetches the CORRECT platform-specific binary for
+// whoever is installing it, into their own node_modules/ — the only actual
+// problem was ever that the compiled output looks for it under a hashed
+// name Node can't resolve on its own.
+//
+// So: don't copy any file content at all. Just record, for each hashed
+// entry, which real package (relative to the real node_modules/) its
+// symlink pointed at, and ship that tiny mapping as `.next/vendor-map.json`.
+// bin/resume-agent.js recreates `.next/node_modules/<hash>` as a fresh
+// symlink into the end user's own already-correctly-installed dependency at
+// first launch — never touching the binary itself.
 import fs from "node:fs";
 import path from "node:path";
 
 const nextDir = path.resolve(process.cwd(), ".next");
-const from = path.join(nextDir, "node_modules");
-const to = path.join(nextDir, "vendor");
+const nodeModulesDir = path.join(nextDir, "node_modules");
+const realNodeModulesDir = path.resolve(process.cwd(), "node_modules");
+const manifestPath = path.join(nextDir, "vendor-map.json");
 
-if (!fs.existsSync(from)) {
-  console.log(`[relocate-next-native-deps] ${from} not found, skipping (this build may not have externalized any native dependencies).`);
+if (!fs.existsSync(nodeModulesDir)) {
+  console.log(`[relocate-next-native-deps] ${nodeModulesDir} not found, skipping (this build may not have externalized any native dependencies).`);
   process.exit(0);
 }
 
-fs.rmSync(to, { recursive: true, force: true });
-fs.cpSync(from, to, { recursive: true, dereference: true });
-fs.rmSync(from, { recursive: true, force: true });
-console.log(`[relocate-next-native-deps] Copied (dereferencing symlinks) ${from} to ${to} and removed the original, so npm won't strip it.`);
+const manifest = {};
+
+function recordIfSymlink(entryPath, key) {
+  if (!fs.lstatSync(entryPath).isSymbolicLink()) return;
+  const real = fs.realpathSync(entryPath);
+  const rel = path.relative(realNodeModulesDir, real);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    console.warn(`[relocate-next-native-deps] ${key} doesn't resolve inside node_modules/ (-> ${real}), skipping.`);
+    return;
+  }
+  manifest[key] = rel.split(path.sep).join("/");
+}
+
+for (const name of fs.readdirSync(nodeModulesDir)) {
+  const entryPath = path.join(nodeModulesDir, name);
+  if (name.startsWith("@")) {
+    // Scoped packages are one directory deeper: @scope/name-<hash>/
+    for (const sub of fs.readdirSync(entryPath)) {
+      recordIfSymlink(path.join(entryPath, sub), `${name}/${sub}`);
+    }
+  } else {
+    recordIfSymlink(entryPath, name);
+  }
+}
+
+fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+fs.rmSync(nodeModulesDir, { recursive: true, force: true });
+console.log(
+  `[relocate-next-native-deps] Recorded ${Object.keys(manifest).length} vendored dependency link(s) to ${manifestPath} and removed ${nodeModulesDir} (npm would have stripped it anyway).`
+);

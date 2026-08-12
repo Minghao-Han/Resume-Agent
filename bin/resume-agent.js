@@ -192,43 +192,54 @@ function openBrowser(url) {
 }
 
 // ---------------------------------------------------------------------------
-// Restore native/special dependencies Turbopack "externalized" at build time
+// Re-link native/special dependencies Turbopack "externalized" at build time
 // (better-sqlite3, @prisma/client).
 //
-// `next build` (Turbopack) copies dependencies that can't be bundled into a
-// JS chunk into `.next/node_modules/<content-hash>/`, and the compiled
-// output require()s them by that hashed name, relying on Node's normal
-// node_modules resolution to find that directory.
+// `next build` (Turbopack) vendors dependencies that can't be bundled into a
+// JS chunk under `.next/node_modules/<content-hash>/` as symlinks into the
+// real top-level `node_modules/`, and the compiled output require()s them
+// by that hashed name, relying on Node's normal node_modules resolution to
+// find that directory. npm strips this at publish time (see
+// scripts/relocate-next-native-deps.mjs for why, and why copying the real
+// file content — an earlier, WRONG version of this fix — breaks on any
+// machine other than the one that built the package: better-sqlite3 ships
+// a compiled native binary specific to one OS/architecture, so shipping the
+// maintainer's own compiled copy fails to load anywhere else).
 //
-// But npm unconditionally strips anything whose path — including a
-// *resolved* symlink target — contains a node_modules segment, no matter
-// what package.json's "files" field says. The hashed entries here are
-// themselves symlinks into the real top-level node_modules/, so a plain
-// rename isn't enough (the symlinks still resolve into node_modules/) —
-// scripts/relocate-next-native-deps.mjs instead copies this directory to
-// `.next/vendor` at build time, *dereferencing* the symlinks into real file
-// content (a name and a shape npm won't strip). This function renames that
-// back to `.next/node_modules` on the end user's machine the first time
-// they launch, so those hashed require() calls in the compiled output can
-// resolve again — a plain rename is fine here since the source is now real
-// files, not symlinks.
+// The correct fix: better-sqlite3 and @prisma/client are already real
+// dependencies of resume-agent, so a normal `npm install` already fetched
+// the platform-correct build for *this* machine into this package's own
+// node_modules/. All that's missing is the hashed alias the compiled output
+// looks for — so recreate it here as a fresh symlink into the real,
+// already-correctly-installed dependency, using the mapping recorded at
+// build time in `.next/vendor-map.json`.
 // ---------------------------------------------------------------------------
 function ensureNativeVendorModules() {
-  const vendorDir = path.join(NEXT_DIR, '.next', 'vendor');
+  const manifestPath = path.join(NEXT_DIR, '.next', 'vendor-map.json');
   const nodeModulesDir = path.join(NEXT_DIR, '.next', 'node_modules');
 
-  if (!fs.existsSync(vendorDir)) return; // normal for a local `next build` during development
-  if (fs.existsSync(nodeModulesDir)) return; // already restored on a previous launch
+  if (!fs.existsSync(manifestPath)) return; // normal for a local `next build` during development
+  if (fs.existsSync(nodeModulesDir)) return; // already linked on a previous launch
 
-  log('Restoring native dependencies externalized at build time (better-sqlite3, etc.)...');
-  try {
-    fs.renameSync(vendorDir, nodeModulesDir);
-  } catch (err) {
-    // Rare cross-device/permission edge case — fall back to copying.
+  log('Linking native dependencies externalized at build time (better-sqlite3, etc.)...');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  for (const [hashedRelPath, realRelPath] of Object.entries(manifest)) {
+    const linkPath = path.join(nodeModulesDir, ...hashedRelPath.split('/'));
+    const targetPath = path.join(PACKAGE_ROOT, 'node_modules', ...realRelPath.split('/'));
+    if (!fs.existsSync(targetPath)) {
+      fail(
+        `Expected dependency not found: ${targetPath}\n` +
+          'This should have been installed automatically as one of resume-agent\'s own dependencies — try reinstalling (npm install -g resume-agent).'
+      );
+    }
+    fs.mkdirSync(path.dirname(linkPath), { recursive: true });
     try {
-      fs.cpSync(vendorDir, nodeModulesDir, { recursive: true });
-    } catch (copyErr) {
-      fail('Failed to restore native dependencies — the app may not be able to connect to the database', copyErr);
+      // 'junction' is ignored on non-Windows platforms but required on
+      // Windows to link a directory without needing elevated privileges
+      // (a plain Windows symlink typically does).
+      fs.symlinkSync(targetPath, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+    } catch (err) {
+      fail(`Failed to link ${linkPath} -> ${targetPath}`, err);
     }
   }
 }
