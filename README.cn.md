@@ -35,6 +35,8 @@ echo 'DATABASE_URL="file:./dev.db"' > .env
 
 # 3. 应用迁移、创建 dev.db、生成 Prisma Client
 npx prisma migrate dev
+npx prisma generate   # schema.prisma 有改动、或 src/generated/prisma/ 缺失/过期时
+                       # （该目录已被 gitignore）请重新执行这一步
 
 # 4. 启动
 npm run dev        # 开发模式，http://localhost:3000

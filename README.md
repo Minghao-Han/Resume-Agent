@@ -35,6 +35,8 @@ echo 'DATABASE_URL="file:./dev.db"' > .env
 
 # 3. Apply migrations, create dev.db, generate the Prisma Client
 npx prisma migrate dev
+npx prisma generate   # re-run this any time schema.prisma changes, or if
+                       # src/generated/prisma/ is missing/stale (it's gitignored)
 
 # 4. Run it
 npm run dev        # development, http://localhost:3000
