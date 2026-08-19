@@ -23,6 +23,8 @@ tone, formatting conventions, quirks the user has taught it) — not resume data
 - Resume generation must fit on one Typst page. If a draft renders to more than one page, shorten
   bullets before adding new sections.
 - Do not fabricate experience, metrics, or dates that are not present in the user's saved data.
+- Within the same resume section, entries must be ordered chronologically by recency (most recent
+  first). E.g. a later Perflection internship should be listed before an earlier N7 internship.
 
 ## Skills
 
