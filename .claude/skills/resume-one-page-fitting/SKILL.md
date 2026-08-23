@@ -1,26 +1,21 @@
 ---
 name: resume-one-page-fitting
-description: Apply this whenever generating or formatting a resume that must fit on exactly one page, or when tailoring resume content to a specific job/company. Covers two things — (1) how to choose which content to include so it demonstrably maps to the target role/company's needs, and (2) a strict, ordered algorithm for shrinking an over-length resume (layout adjustments before content cuts, with a defined priority order for both) rather than cutting arbitrarily. Use this together with resume-highlight-extraction: that skill produces the pool of candidate bullets, this skill selects and fits them onto one page for a specific application.
+description: Apply this whenever a drafted resume must fit on exactly one page. Covers a strict, ordered algorithm for shrinking an over-length resume — layout adjustments before content cuts, with a defined priority order for both — rather than cutting arbitrarily. Content selection itself (what belongs on the resume for a given JD) is resume-content-and-jd-reading's job; this skill takes already-selected content and fits it onto one page.
 ---
 
 # Resume One-Page Fitting
 
-Two responsibilities: (1) selecting content that's provably relevant to the
-target role/company, and (2) fitting the result onto exactly one page through a
-strict, ordered adjustment algorithm — never arbitrary trimming.
+Fit already-selected resume content onto exactly one page through a strict,
+ordered adjustment algorithm — never arbitrary trimming.
 
 ## 1. Selection principle
 
-Every bullet, skill, course, or project kept on the resume must be there because
-it demonstrates value to **this specific job/company** — not "impressive in
-general." Before including anything, be able to answer: *which requirement in
-the job description (or which known priority of this company) does this item
-support?* If the answer is vague, that item is a cut candidate even before the
-page-length check kicks in.
-
-This means the same underlying experience can be summarized differently, or
-excluded entirely, depending on the target role — don't reuse one fixed bullet
-set across applications without re-checking relevance.
+Content selection itself (what belongs on the resume for this JD, and why) is
+`resume-content-and-jd-reading`'s job — see its Parts 1, 3, and 4. This skill
+picks up after that: given already-selected content, fit it onto one page. The
+one thing carried over here is the relevance ordering that selection produces —
+it's also what decides *which* item gets cut first below (Step B, and the
+guardrails in Section 3).
 
 ## 2. One-page constraint: the adjustment algorithm
 
@@ -55,22 +50,14 @@ last, i.e. protect Experience the longest):
 4. Experience *(cut last — most valuable section, touch only if the other three
    are already fully exhausted)*
 
-**Experience > Project by default.** Experience is inherently weighted higher
-than Projects — when both need trimming, exhaust Project cuts first. This holds
-*unless a specific project is highly relevant to the target job/company*, in
-which case that project should be treated as on par with (or above) a
-less-relevant Experience entry:
-
-- Apply the Section 1 relevance test per-item, not just per-section. A highly
-  job-relevant Project can outrank a weakly-relevant Experience entry — don't
-  mechanically protect all Experience over all Projects regardless of fit.
-- When in doubt (relevance is ambiguous, not clearly "highly relevant"), default
-  back to the standard rule: Experience is protected over Projects.
-- This exception only reorders *which specific item* gets cut first — it doesn't
-  change the overall Courses → Skills → Projects → Experience section pass
-  order; it just means a stray highly-relevant Project shouldn't be gutted
-  before a barely-relevant Experience bullet purely because "Projects" comes
-  before "Experience" in the pass order.
+**Experience > Project by default**, same priority as `resume-generation`'s
+Pass 1/Pass 2 selection rule — when both need trimming, exhaust Project cuts
+first. Exception: a project highly relevant to the target job/company is on par
+with (or above) a less-relevant Experience entry, per the Section 1 relevance
+test applied per-item, not per-section. When relevance is ambiguous rather than
+clearly high, default back to protecting Experience. This exception only
+reorders *which specific item* gets cut first — it doesn't change the overall
+Courses → Skills → Projects → Experience section pass order.
 
 For each section, before applying the general trimming method below, apply this
 section-specific pre-filter:

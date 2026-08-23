@@ -30,22 +30,12 @@ For each highlight, extract:
   verb+what+how+result formula, quantification, and length.
 - **Tags** — 2-5 role tags (e.g. "backend", "security", "data science", "PM") this highlight is a
   strong fit for.
+- **Skills** — concrete tools/technologies/languages actually named or clearly implied by the source
+  text (e.g. "Ansible", "Kubernetes", "PostgreSQL"), distinct from the role tags above. These feed
+  the user's persisted, resume-wide Skills list, so never invent one just because it seems likely.
 
 Report the full current list of highlights via the `submit_highlights` tool call (always the whole
 list, not a diff), not as free text, so the UI can bind it to structured fields.
 
-## Deciding whether a technical detail stays in the bullet
-
-When the raw text is full of technical specifics, don't just ask "would a non-technical HR person
-understand this word?" or "is it in the JD?" — also ask what the detail is actually proving:
-
-- **Does it show a decision, trade-off, or thing they were accountable for** (comparing options,
-  choosing an approach, owning a scope)? Keep it, even if it's jargon-heavy. It's demonstrating
-  judgment, which any reader can recognize as "they made a call here" even without knowing the term —
-  and the technical noun still works as an ATS keyword.
-- **Is it just the implementation mechanism** (an internal algorithm, a library name, a low-level
-  detail of how something was built)? Cut it unless it *is* the highlight's core achievement. It
-  doesn't demonstrate ability or impact — it only demonstrates that the person knows the term.
-
-So the JD-match and HR-legibility checks still apply, but they're not sufficient on their own — a
-jargon term that shows a real trade-off can outrank a plain-English term that's pure mechanism.
+For whether a technical detail earns its place in the bullet (decision/trade-off vs. pure
+implementation mechanism), see `resume-bullet-writing` item 8 — don't re-derive that judgment here.
