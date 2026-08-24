@@ -8,6 +8,7 @@ import { narrowRange } from "@/lib/agent/charRange";
 import type { TemplateCalibration } from "@/lib/agent/templateCalibration";
 import type { AgentTurnUsage } from "@/lib/agent/core";
 import type { ExperienceForPrompt } from "@/lib/agent/resumeGen";
+import { checkKeywordCoverage, formatKeywordGaps } from "@/lib/agent/keywordCoverage";
 import { errorResponse } from "@/lib/apiError";
 
 const bodySchema = z.object({
@@ -186,6 +187,22 @@ async function handlePost(request: Request) {
         where: { id: body.templateId },
         data: { calibration: JSON.stringify(updated) },
       });
+    }
+  }
+
+  // Deterministic, no extra LLM round: flag any JD-relevant tag from the
+  // user's own highlight pool that the final resume doesn't actually back up
+  // with a bullet (only a bare Skills-line mention, or nothing at all).
+  // Only possible on a fresh "start" call — a "continue" call doesn't carry
+  // jdText, and a URL JD isn't the JD's actual text.
+  if (experiencesForPrompt && body.jdText && !body.jdIsUrl) {
+    const best = rounds[bestIndex];
+    if (best.typstSource) {
+      const gaps = checkKeywordCoverage(body.jdText, experiencesForPrompt, best.typstSource);
+      const note = formatKeywordGaps(gaps);
+      if (note) {
+        rounds[bestIndex] = { ...best, reply: best.reply + note };
+      }
     }
   }
 
