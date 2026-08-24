@@ -27,6 +27,34 @@ The single most common failure mode is describing responsibilities instead of re
 customer calls" tells the reader nothing about impact. For every bullet, ask "so what?" — what changed
 because of this — instead of describing the task itself.
 
+## 2a. Front-load the value category — don't make the reader wait for the trailing clause
+
+A subtler version of the same failure: the bullet *does* end on a real result, but the value only
+becomes legible in the last few words, after a scanning reader has already moved on. "Migrated 12
+secrets to AWS Secrets Manager with least-privilege IAM policies, eliminating plaintext credential
+exposure" is technically achievement-framed, but a recruiter skimming the first half sees only
+"migrated... to a service" — nothing tells them this is a **security** win until the very end, and the
+word "security" never appears at all.
+
+Fix this at the verb and the immediate object, not just the trailing clause: pick an opening that
+itself signals the category of value (security, performance, cost, reliability, scale) instead of a
+neutral process verb (migrated, built, updated, implemented) that could belong to any kind of change.
+Where the underlying JD or role cares about a named category (security, latency, cost), use that
+category's own vocabulary near the front of the sentence, not only implied by the result clause.
+
+- Weak (value arrives too late): "Migrated 12 core secrets to AWS Secrets Manager with least-privilege
+  IAM policies, eliminating plaintext credential exposure."
+- Better (value signaled from word one): "Eliminated plaintext credential exposure by migrating 12 core
+  secrets to AWS Secrets Manager with least-privilege IAM policies."
+- Weak: "Discovered and fixed an authorization vulnerability across 3 presigned-URL endpoints by
+  designing a role-based access control system, preventing unauthorized video access."
+- Better: "Closed a security vulnerability letting users access other users' videos: redesigned 3
+  presigned-URL endpoints around role-based access control."
+
+Note both fixes did the same thing — they didn't add new content, they reordered the clause that
+already existed so the payoff leads instead of trails. If the honest result is a security/performance/
+cost win, say so as close to the front of the sentence as the grammar allows.
+
 ## 3. Formula: verb + what you did + how + result
 
 A bullet reduces to **action verb + what you did + how you did it + measurable result**. This overlaps
@@ -99,6 +127,8 @@ as carelessness at a glance.
 
 - Does it start with an action verb, not "Responsible for" / "Duties included"?
 - Does it say what changed, not just what task was performed?
+- Would a reader who only reads the first half of the sentence already know what *kind* of win this is
+  (security, performance, cost, reliability), or does the value only land in the trailing clause?
 - Is there a number — or, if none exists, a precise causal mechanism instead of a vague claim?
 - Is it one to two lines, one core result, and under 190 characters?
 - Would a reader recognize the JD's vocabulary in it without it feeling force-fit?
