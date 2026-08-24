@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { experienceInputSchema, serializeExperience } from "@/lib/experienceApi";
+import { upsertSkillNames } from "@/lib/skillsApi";
 import { errorResponse } from "@/lib/apiError";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -51,6 +52,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
             quantify: h.quantify,
             resumeBullet: h.resumeBullet,
             tags: JSON.stringify(h.tags),
+            skills: JSON.stringify(h.skills),
             sortOrder: index,
             experienceId: id,
           })),
@@ -62,6 +64,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       });
     });
 
+    await upsertSkillNames(body.highlights.flatMap((h) => h.skills));
     return NextResponse.json(serializeExperience(updated));
   } catch (err) {
     return errorResponse(err);

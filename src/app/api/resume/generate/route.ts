@@ -7,6 +7,7 @@ import { measureRealPageHeight } from "@/lib/agent/typstServerCompile";
 import { narrowRange } from "@/lib/agent/charRange";
 import type { TemplateCalibration } from "@/lib/agent/templateCalibration";
 import type { AgentTurnUsage } from "@/lib/agent/core";
+import type { ExperienceForPrompt } from "@/lib/agent/resumeGen";
 import { errorResponse } from "@/lib/apiError";
 
 const bodySchema = z.object({
@@ -55,6 +56,7 @@ async function handlePost(request: Request) {
 
   let firstRound: RoundResult;
   let template: { typstSource: string; calibration: string | null } | null = null;
+  let experiencesForPrompt: ExperienceForPrompt[] | null = null;
 
   if (body.sessionId) {
     if (!body.message) {
@@ -72,9 +74,10 @@ async function handlePost(request: Request) {
       return NextResponse.json({ error: "jdText and templateId are required to start" }, { status: 400 });
     }
 
-    const [personalInfo, experiences, fetchedTemplate] = await Promise.all([
+    const [personalInfo, experiences, skills, fetchedTemplate] = await Promise.all([
       prisma.personalInfo.findFirst({ include: { educations: { orderBy: { sortOrder: "asc" } } } }),
       prisma.experience.findMany({ include: { highlights: { orderBy: { sortOrder: "asc" } } } }),
+      prisma.skill.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
       prisma.resumeTemplate.findUnique({ where: { id: body.templateId } }),
     ]);
 
@@ -82,6 +85,27 @@ async function handlePost(request: Request) {
       return NextResponse.json({ error: "template not found" }, { status: 404 });
     }
     template = fetchedTemplate;
+
+    experiencesForPrompt = experiences.map((e) => ({
+      id: e.id,
+      title: e.title,
+      org: e.org,
+      type: e.type,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      location: e.location,
+      highlights: e.highlights.map((h) => ({
+        id: h.id,
+        title: h.title,
+        situation: h.situation,
+        task: h.task,
+        action: h.action,
+        result: h.result,
+        quantify: h.quantify,
+        resumeBullet: h.resumeBullet,
+        tags: JSON.parse(h.tags),
+      })),
+    }));
 
     firstRound = await startResumeGeneration({
       jdText: body.jdText,
@@ -103,27 +127,9 @@ async function handlePost(request: Request) {
           relevantCourses: e.relevantCourses,
           gpa: e.gpa,
         })),
+        skills: skills.map((s) => ({ name: s.name, category: s.category })),
       },
-      experiences: experiences.map((e) => ({
-        id: e.id,
-        title: e.title,
-        org: e.org,
-        type: e.type,
-        startDate: e.startDate,
-        endDate: e.endDate,
-        location: e.location,
-        highlights: e.highlights.map((h) => ({
-          id: h.id,
-          title: h.title,
-          situation: h.situation,
-          task: h.task,
-          action: h.action,
-          result: h.result,
-          quantify: h.quantify,
-          resumeBullet: h.resumeBullet,
-          tags: JSON.parse(h.tags),
-        })),
-      })),
+      experiences: experiencesForPrompt,
       templateSource: fetchedTemplate.typstSource,
       calibration: parseCalibration(fetchedTemplate.calibration),
     });

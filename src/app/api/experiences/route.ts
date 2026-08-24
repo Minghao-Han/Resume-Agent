@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { experienceInputSchema, serializeExperience } from "@/lib/experienceApi";
+import { upsertSkillNames } from "@/lib/skillsApi";
 import { errorResponse } from "@/lib/apiError";
 
 export async function GET() {
@@ -39,12 +40,14 @@ export async function POST(request: Request) {
             quantify: h.quantify,
             resumeBullet: h.resumeBullet,
             tags: JSON.stringify(h.tags),
+            skills: JSON.stringify(h.skills),
             sortOrder: index,
           })),
         },
       },
       include: { highlights: { orderBy: { sortOrder: "asc" } } },
     });
+    await upsertSkillNames(body.highlights.flatMap((h) => h.skills));
     return NextResponse.json(serializeExperience(created));
   } catch (err) {
     return errorResponse(err);

@@ -32,6 +32,13 @@ const FAKE_PERSONAL_INFO: PersonalInfoForPrompt = {
       gpa: "",
     },
   ],
+  skills: [
+    { name: "Python", category: "Languages" },
+    { name: "Go", category: "Languages" },
+    { name: "Docker", category: "Cloud & Infrastructure" },
+    { name: "Kubernetes", category: "Cloud & Infrastructure" },
+    { name: "PostgreSQL", category: "Databases & Messaging" },
+  ],
 };
 
 function fakeHighlight(id: string, title: string, bullet: string, tags: string[]) {

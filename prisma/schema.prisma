@@ -63,10 +63,23 @@ model Highlight {
   result       String     @default("")
   quantify     String     @default("")
   resumeBullet String     @default("") // polished, resume-ready synthesis of the STAR-Q above
-  tags         String     @default("[]") // JSON string[]
+  tags         String     @default("[]") // JSON string[] — role tags, e.g. "backend"
+  skills       String     @default("[]") // JSON string[] — concrete tools/tech named in this highlight, e.g. "Ansible"
   sortOrder    Int        @default(0)
   experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
   experienceId String
+}
+
+// The user's global, persisted skills list — the only source of truth for
+// what goes in a generated resume's Skills section (see resumeGen.ts's data
+// isolation rule). Auto-populated from Highlight.skills during STAR-Q
+// extraction, and directly editable by the user on the Profile page.
+model Skill {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  category  String   @default("") // e.g. "Languages", "Cloud & Infrastructure" — optional, user-editable
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model ResumeTemplate {

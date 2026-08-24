@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "@/lib/toast";
-import { ApiError, apiGet, apiPut } from "@/lib/apiClient";
+import { ApiError, apiDelete, apiGet, apiPost, apiPut } from "@/lib/apiClient";
 import { useReportDirty } from "@/lib/unsavedChanges";
 
 type Education = {
@@ -16,6 +16,12 @@ type Education = {
   region: string;
   relevantCourses: string;
   gpa: string;
+};
+
+type Skill = {
+  id: string;
+  name: string;
+  category: string;
 };
 
 type Profile = {
@@ -247,9 +253,113 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      <SkillsSection />
+
       <div className="mt-8 flex items-center gap-3">
         <button type="button" onClick={save} disabled={saving} className="btn-primary">
           {saving ? "保存中…" : "保存"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Skills persist immediately on add/delete (like the tag chips in
+ * src/app/experience/page.tsx), independent of the Profile page's own
+ * save()/isDirty flow for PersonalInfo/Education. */
+function SkillsSection() {
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [nameInput, setNameInput] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    apiGet<Skill[]>("/api/skills")
+      .then(setSkills)
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function addSkill() {
+    const name = nameInput.trim();
+    if (!name) return;
+    setAdding(true);
+    try {
+      const created = await apiPost<Skill>("/api/skills", { name });
+      setSkills((s) => (s.some((sk) => sk.id === created.id) ? s : [...s, created]));
+      setNameInput("");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "添加失败，请重试");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function removeSkill(id: string) {
+    const previous = skills;
+    setSkills((s) => s.filter((sk) => sk.id !== id));
+    try {
+      await apiDelete(`/api/skills/${id}`);
+    } catch (err) {
+      setSkills(previous);
+      toast(err instanceof ApiError ? err.message : "删除失败，请重试");
+    }
+  }
+
+  const grouped = new Map<string, Skill[]>();
+  for (const skill of skills) {
+    const key = skill.category || "其他";
+    grouped.set(key, [...(grouped.get(key) ?? []), skill]);
+  }
+
+  return (
+    <div className="mt-8">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-medium">技能</h2>
+      </div>
+      <p className="mb-3 text-sm text-neutral-500">
+        提取 highlight 时会自动识别其中用到的技能加入这里；简历生成时只会使用这份列表里的技能，不会凭空添加。
+      </p>
+      {loading ? (
+        <p className="text-sm text-neutral-500">加载中…</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {[...grouped.entries()].map(([category, items]) => (
+            <div key={category}>
+              <div className="mb-1 text-xs font-medium text-neutral-500">{category}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {items.map((skill) => (
+                  <span key={skill.id} className="tag">
+                    {skill.name}
+                    <button
+                      type="button"
+                      className="ml-1.5 text-neutral-400 hover:text-red-500"
+                      onClick={() => removeSkill(skill.id)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+          {skills.length === 0 && <p className="text-sm text-neutral-500">还没有技能，提取 highlight 后会自动出现，也可以手动添加。</p>}
+        </div>
+      )}
+      <div className="mt-3 flex gap-2">
+        <input
+          className="input flex-1"
+          placeholder="添加技能…"
+          value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addSkill();
+            }
+          }}
+        />
+        <button type="button" className="btn-secondary" onClick={addSkill} disabled={adding}>
+          + 添加
         </button>
       </div>
     </div>

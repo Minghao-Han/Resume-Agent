@@ -29,6 +29,7 @@ export type HighlightResult = {
   quantify: string;
   resumeBullet: string;
   tags: string[];
+  skills: string[];
 };
 
 const highlightShape = {
@@ -48,6 +49,11 @@ const highlightShape = {
   tags: z
     .array(z.string())
     .describe("2-5 role tags this highlight is a strong fit for, e.g. 'backend', 'data science'."),
+  skills: z
+    .array(z.string())
+    .describe(
+      "Concrete tools/technologies/languages explicitly used in this highlight, e.g. 'Ansible', 'Kubernetes', 'PostgreSQL' — not role tags like 'backend'. Only include things actually named or clearly implied by the user's raw text, never invented."
+    ),
 };
 
 function buildStarQServer() {
@@ -85,6 +91,7 @@ For each highlight, produce:
 - Quantify: the result restated with a number. If the user's text has no number, leave quantify empty and ask them for one in your reply instead of inventing it.
 - Resume bullet: one polished, resume-ready sentence synthesizing the above (not the raw fields concatenated).
 - Tags: 2-5 role tags this highlight is a strong fit for (e.g. "backend", "security", "data science", "PM").
+- Skills: concrete tools/technologies/languages actually named or clearly implied by the user's raw text (e.g. "Ansible", "Kubernetes", "PostgreSQL") — distinct from the role tags above, and never invented; these feed the user's persisted, resume-wide Skills list, so only include things this specific highlight really demonstrates.
 
 On follow-up turns the user message may start with a "Current highlights (JSON, ...)" block giving you the exact current state of every highlight (with a stable "index"), reflecting any manual edits made in the UI since your last reply — treat this JSON as ground truth over your own memory of earlier turns. It may be followed by a note like "The user @mentioned highlight index(es) 2 in their message below" — that means the user's request (in the "User message:" part) applies ONLY to that highlight(s) by index; copy every other highlight from the JSON into your tool call completely unchanged (same title/situation/task/action/result/quantify/resumeBullet/tags), and only modify the targeted one(s). If no index is mentioned, use your judgment on which highlight(s) the free-form request refers to, or treat it as applying broadly (e.g. a new highlight to add, or a request affecting all of them).
 
@@ -108,6 +115,7 @@ function findHighlightsCall(toolCalls: AgentToolCall[]): HighlightResult[] | nul
       quantify: input.quantify ?? "",
       resumeBullet: input.resumeBullet ?? "",
       tags: Array.isArray(input.tags) ? input.tags : [],
+      skills: Array.isArray(input.skills) ? input.skills : [],
     };
   });
 }

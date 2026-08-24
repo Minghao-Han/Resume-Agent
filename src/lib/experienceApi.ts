@@ -12,6 +12,7 @@ export const highlightSchema = z.object({
   quantify: z.string().default(""),
   resumeBullet: z.string().default(""),
   tags: z.array(z.string()).default([]),
+  skills: z.array(z.string()).default([]),
 });
 
 export const experienceInputSchema = z.object({
@@ -27,7 +28,7 @@ export const experienceInputSchema = z.object({
   highlights: z.array(highlightSchema).default([]),
 });
 
-type SerializableHighlight = { tags: string; [key: string]: unknown };
+type SerializableHighlight = { tags: string; skills: string; [key: string]: unknown };
 type SerializableExperience = {
   chatHistory: string;
   highlights?: SerializableHighlight[];
@@ -38,6 +39,6 @@ export function serializeExperience<T extends SerializableExperience>(exp: T) {
   return {
     ...exp,
     chatHistory: JSON.parse(exp.chatHistory),
-    highlights: (exp.highlights ?? []).map((h) => ({ ...h, tags: JSON.parse(h.tags) })),
+    highlights: (exp.highlights ?? []).map((h) => ({ ...h, tags: JSON.parse(h.tags), skills: JSON.parse(h.skills) })),
   };
 }
