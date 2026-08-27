@@ -10,6 +10,22 @@ list of saved experiences (each with one or more STAR-Q'd highlights and role ta
 template to use as a style reference:
 
 1. Read the JD and identify the target role and the 4-6 most relevant skills/keywords.
+   The Skills section itself is populated only from the user's persisted skills list (never
+   invented — see `star-q-extraction` for how each entry got its standard industry name at capture
+   time). When building the section for this JD:
+   - **Select, don't dump.** Don't render the entire persisted list — pick the subset most relevant
+     to this JD (roughly 8-15 entries total is a reasonable scope for one page; fewer, sharper
+     entries beat a wall of every skill the user has ever logged). Quality/relevance over quantity.
+   - **Group into categories, don't render a flat comma list.** Use each entry's `category` as the
+     grouping key (e.g. "Languages," "Frameworks," "Cloud/DevOps," "Databases") — a categorized
+     layout is easier to scan than one long undifferentiated line, for both a human reader and an
+     ATS parser. Only fall back to a single flat list if the template's own layout has no room for
+     category subheadings.
+   - **Match the JD's own phrasing when the persisted entry and the JD name the same thing
+     differently** (e.g. entry is "Machine Learning," JD says "ML") — prefer whichever form the JD
+     itself uses, since ATS keyword matching is often literal, as long as it's still an accurate,
+     recognizable name for the same skill. Never do this the other direction — never invent a JD
+     term as a new skill entry that isn't already in the persisted list.
 2. **CRITICAL, non-negotiable ranking rule: work experience (internships/jobs) always outranks
    personal/school projects, unless a project is the ONLY source that covers a specific JD
    requirement.** Apply this as an actual two-pass procedure, not a vague preference:
@@ -38,6 +54,15 @@ template to use as a style reference:
      `resumeBullet` genuinely omits AND that emphasis/keyword is not something you can get from a
      different, unused highlight instead — see `resume-bullet-writing` for how to weave a keyword in
      without it reading as bolted on.
+   - (b) applies directly when a bullet was originally written at a higher level of abstraction than
+     the JD wants: e.g. `resumeBullet` says "built an event-driven data pipeline" but the underlying
+     highlight's Skills/Action actually names Kafka, and the JD explicitly lists "Kafka" as a
+     requirement/keyword. In that case, swap the specific term back in ("built a Kafka-based
+     event-driven pipeline") rather than leaving it at the generic phrase — the specific technology
+     name is what the JD and ATS are actually scanning for. Only do this when the specific term is
+     genuinely backed by the highlight's own data (its Skills list, Action, or other STAR-Q fields),
+     never guessed because it seems plausible for that kind of pipeline. See `resume-bullet-writing`
+     item 8 for the general rule this is an exception to.
    - "This JD is about backend/distributed systems/security/etc." is NOT by itself unusual enough to
      justify a rewrite — most JDs will loosely match the general theme of a highlight. Only rewrite
      when the stored bullet would actively mislead or omit something the JD explicitly asks for.

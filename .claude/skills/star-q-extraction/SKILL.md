@@ -33,6 +33,19 @@ For each highlight, extract:
 - **Skills** — concrete tools/technologies/languages actually named or clearly implied by the source
   text (e.g. "Ansible", "Kubernetes", "PostgreSQL"), distinct from the role tags above. These feed
   the user's persisted, resume-wide Skills list, so never invent one just because it seems likely.
+  Record each under its standard industry name — the exact form a recruiter or an ATS keyword match
+  would expect — not an internal project/product alias or a private nickname:
+  - Normalize an internal/informal name to the known public technology it refers to: "Kubernetes" not
+    "k8s cluster," "PostgreSQL" not "the Postgres shard," "Kafka" not "our internal event bus." If it's
+    genuinely a proprietary/internal-only tool with no public equivalent, keep it as named rather than
+    guessing a public substitute.
+  - Spell out an acronym/abbreviation in full UNLESS it's a universally industry-standard short form
+    (SQL, AWS, HTML, API, CI/CD, REST) that's more recognizable abbreviated than expanded — for
+    anything less universal, the fully spelled-out form is the safer default (e.g. "Customer
+    Relationship Management" rather than an unqualified "CRM") since ATS keyword matching is often
+    literal and won't credit a synonym or acronym for the spelled-out term a JD uses, or vice versa.
+  - Keep each entry to the specific tool/technology itself, not a vaguer category standing in for it
+    (e.g. "Ansible," not "configuration management tools").
 
 Report the full current list of highlights via the `submit_highlights` tool call (always the whole
 list, not a diff), not as free text, so the UI can bind it to structured fields.

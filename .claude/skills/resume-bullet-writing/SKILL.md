@@ -115,6 +115,13 @@ a **decision/trade-off** the person made, or just **how** they implemented somet
   person knows the term, not that they exercised judgment or created value — cut it unless this exact
   mechanism *is* the highlight of the experience (e.g. the experience is specifically "I designed this
   algorithm"), in which case keep it and make sure the bullet frames it as a choice/result, not trivia.
+  - **Exception — the JD names this exact technology as a keyword:** if a bullet was generalized away
+    from a specific tool/technology (e.g. "built an event-driven pipeline" instead of naming Kafka,
+    which the highlight's own Skills/Action data confirms was actually used) and the target JD
+    explicitly lists that specific term as a requirement, reinstate the specific name even though it
+    reads as "just implementation" by the rule above — see `resume-generation`'s keyword-restoration
+    rule. At that point ATS/recruiter keyword matching outweighs the general preference for
+    decision-framing. Never reinstate a term the highlight's data doesn't actually support.
 
 ## 9. Format consistently across the resume
 
